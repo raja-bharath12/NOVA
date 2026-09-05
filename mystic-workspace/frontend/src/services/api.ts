@@ -2,8 +2,8 @@ import axios from 'axios'
 
 const isProd = import.meta.env.PROD
 
-export const BACKEND_URL = 'http://65.2.121.136'
-export const API_BASE_URL = 'http://65.2.121.136/api'
+export const BACKEND_URL = 'https://mystic-nova.duckdns.org'
+export const API_BASE_URL = 'https://mystic-nova.duckdns.org/api'
 
 export const WS_BASE_URL =
   import.meta.env.VITE_WS_URL ||
