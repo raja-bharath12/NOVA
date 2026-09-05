@@ -159,7 +159,7 @@ export default function Whiteboard() {
         </div>
       ) : (
         /* Whiteboard Gallery & Hub */
-        <div className="max-w-7xl w-full mx-auto relative z-10 flex-1 flex flex-col">
+        <div className="w-full relative z-10 flex-1 flex flex-col">
           {/* Top Banner */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent p-6 rounded-3xl border border-purple-500/20 backdrop-blur-xl">
             <div>

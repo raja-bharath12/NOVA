@@ -82,7 +82,7 @@ export default function Tasks() {
   const completedCount = tasks.filter((t) => t.completed).length
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full space-y-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gradient">Tasks</h1>

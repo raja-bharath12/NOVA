@@ -115,7 +115,7 @@ export default function Files() {
   const totalStorage = files.reduce((acc, f) => acc + f.fileSize, 0)
 
   return (
-    <div className="max-w-6xl space-y-6">
+    <div className="w-full space-y-6">
       {/* Top Header & Storage Stats */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
