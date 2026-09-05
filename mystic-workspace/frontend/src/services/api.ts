@@ -1,13 +1,21 @@
 import axios from 'axios'
 
+const isProd = import.meta.env.PROD
+
 export const BACKEND_URL =
   import.meta.env.VITE_BACKEND_URL ||
   (import.meta.env.VITE_API_URL
     ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
-    : 'http://localhost:8080')
+    : (isProd ? '' : 'http://localhost:8080'))
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || `${BACKEND_URL}/api`
-export const WS_BASE_URL = import.meta.env.VITE_WS_URL || `${BACKEND_URL}/ws`
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL || (BACKEND_URL ? `${BACKEND_URL}/api` : '/api')
+
+export const WS_BASE_URL =
+  import.meta.env.VITE_WS_URL ||
+  (BACKEND_URL
+    ? `${BACKEND_URL}/ws`
+    : `${typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'https:' : 'http:'}//${typeof window !== 'undefined' ? window.location.host : 'localhost:8080'}/ws`)
 
 const api = axios.create({
   baseURL: API_BASE_URL,
