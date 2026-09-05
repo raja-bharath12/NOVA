@@ -1,0 +1,908 @@
+import React, { useEffect, useState, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  Search,
+  Plus,
+  Send,
+  Paperclip,
+  Phone,
+  Video,
+  Info,
+  X,
+  Reply,
+  Edit2,
+  Trash2,
+  Check,
+  CheckCheck,
+  FileText,
+  Download,
+  Image as ImageIcon,
+  Film,
+  Users,
+  MessageSquare,
+  Sparkles,
+} from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { useCall } from '../context/CallContext'
+import { chatService } from '../services/chatService'
+import { fileService } from '../services/fileService'
+import { websocketService } from '../services/websocketService'
+import { BACKEND_URL } from '../services/api'
+import type { Conversation, Message, User, FileItem, TypingEvent } from '../types'
+
+export default function Chat() {
+  const { user } = useAuth()
+  const { initiateCall, onlineUserIds } = useCall()
+
+  // Conversations State
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [loadingConversations, setLoadingConversations] = useState(true)
+
+  // Messages State
+  const [messages, setMessages] = useState<Message[]>([])
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const [inputText, setInputText] = useState('')
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null)
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null)
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set())
+
+  // Attachments State
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+
+  // UI Panels State
+  const [showRightPane, setShowRightPane] = useState(false)
+  const [showNewChatModal, setShowNewChatModal] = useState(false)
+  const [newChatType, setNewChatType] = useState<'DIRECT' | 'GROUP'>('DIRECT')
+  const [newGroupTitle, setNewGroupTitle] = useState('')
+  const [workspaceUsers, setWorkspaceUsers] = useState<User[]>([])
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
+
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Load conversations on mount
+  useEffect(() => {
+    loadConversations()
+  }, [])
+
+  // Subscribe to real-time conversation events
+  useEffect(() => {
+    if (!selectedConversation) return
+
+    setLoadingMessages(true)
+    chatService
+      .getMessages(selectedConversation.id)
+      .then((msgs) => {
+        setMessages(msgs)
+        // Mark latest unread messages as read
+        if (msgs.length > 0) {
+          const lastMsg = msgs[msgs.length - 1]
+          chatService.markAsRead(selectedConversation.id, lastMsg.id)
+        }
+      })
+      .finally(() => setLoadingMessages(false))
+
+    // Subscribe to STOMP topic for active conversation
+    const unsub = websocketService.subscribeToConversation(
+      selectedConversation.id,
+      (newMsg: Message) => {
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === newMsg.id)
+          if (idx >= 0) {
+            const updated = [...prev]
+            updated[idx] = newMsg
+            return updated
+          }
+          return [...prev, newMsg]
+        })
+
+        // Update conversation last message in list
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === selectedConversation.id
+              ? { ...c, lastMessage: newMsg, updatedAt: newMsg.createdAt }
+              : c
+          )
+        )
+
+        // Mark as read if from someone else
+        if (user && newMsg.sender.id !== user.id) {
+          chatService.markAsRead(selectedConversation.id, newMsg.id)
+        }
+      },
+      (typing: TypingEvent) => {
+        if (user && typing.userId !== user.id) {
+          setTypingUsers((prev) => {
+            const next = new Set(prev)
+            if (typing.isTyping) {
+              next.add(typing.userName)
+            } else {
+              next.delete(typing.userName)
+            }
+            return next
+          })
+        }
+      },
+      (receipt) => {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === receipt.messageId
+              ? {
+                  ...m,
+                  readByUserIds: Array.from(new Set([...m.readByUserIds, receipt.userId])),
+                  isRead: true,
+                }
+              : m
+          )
+        )
+      }
+    )
+
+    return () => unsub()
+  }, [selectedConversation?.id])
+
+  // Auto-scroll on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, typingUsers])
+
+  async function loadConversations() {
+    try {
+      setLoadingConversations(true)
+      const data = await chatService.getConversations()
+      setConversations(data)
+      if (data.length > 0 && !selectedConversation) {
+        setSelectedConversation(data[0])
+      }
+    } catch (err) {
+      console.error('Failed to load conversations', err)
+    } finally {
+      setLoadingConversations(false)
+    }
+  }
+
+  async function openNewChatModal() {
+    setShowNewChatModal(true)
+    const users = await chatService.searchUsers()
+    setWorkspaceUsers(users)
+    setSelectedUserIds([])
+    setNewGroupTitle('')
+  }
+
+  async function handleCreateConversation() {
+    if (newChatType === 'DIRECT') {
+      if (selectedUserIds.length === 0) return
+      const direct = await chatService.createDirectConversation(selectedUserIds[0])
+      setConversations((prev) => [direct, ...prev.filter((c) => c.id !== direct.id)])
+      setSelectedConversation(direct)
+    } else {
+      if (selectedUserIds.length === 0 || !newGroupTitle.trim()) return
+      const group = await chatService.createGroupConversation(newGroupTitle.trim(), selectedUserIds)
+      setConversations((prev) => [group, ...prev])
+      setSelectedConversation(group)
+    }
+    setShowNewChatModal(false)
+  }
+
+  async function handleSendMessage(e?: React.FormEvent) {
+    if (e) e.preventDefault()
+    if (!selectedConversation || (!inputText.trim() && selectedFiles.length === 0)) return
+
+    if (editingMessage) {
+      const updated = await chatService.editMessage(editingMessage.id, inputText.trim())
+      setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
+      setEditingMessage(null)
+      setInputText('')
+      return
+    }
+
+    try {
+      let attachmentIds: number[] = []
+
+      if (selectedFiles.length > 0) {
+        setUploadingFiles(true)
+        for (const f of selectedFiles) {
+          const res = await fileService.uploadFile(f, selectedConversation.id, false, (p) => {
+            setUploadProgress(p)
+          })
+          attachmentIds.push(res.id)
+        }
+      }
+
+      await chatService.sendMessage(
+        selectedConversation.id,
+        inputText.trim() || undefined,
+        replyingTo ? replyingTo.id : undefined,
+        attachmentIds.length > 0 ? attachmentIds : undefined
+      )
+
+      setInputText('')
+      setReplyingTo(null)
+      setSelectedFiles([])
+      setUploadProgress(0)
+    } catch (err) {
+      console.error('Failed to send message', err)
+    } finally {
+      setUploadingFiles(false)
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setInputText(e.target.value)
+    if (selectedConversation) {
+      websocketService.sendTypingDebounced(selectedConversation.id)
+    }
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) {
+      setSelectedFiles(Array.from(e.target.files))
+    }
+  }
+
+  async function handleDeleteMessage(msgId: number) {
+    await chatService.deleteMessage(msgId)
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId ? { ...m, isDeleted: true, content: 'This message was deleted' } : m
+      )
+    )
+  }
+
+  function startCall(isVideo: boolean) {
+    if (!selectedConversation || !user) return
+    const recipient = selectedConversation.members.find((m) => m.id !== user.id)
+    if (recipient) {
+      initiateCall(recipient.id, recipient.name, isVideo)
+    }
+  }
+
+  const isUserOnline = (userId?: number) => {
+    if (!userId) return false
+    return onlineUserIds.has(userId)
+  }
+
+  const filteredConversations = conversations.filter((c) =>
+    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  return (
+    <div className="flex h-[calc(100vh-100px)] w-full gap-4 overflow-hidden">
+      {/* ===== LEFT PANE: Conversations List ===== */}
+      <div className="flex flex-col w-full md:w-80 lg:w-96 glass-panel border border-white/[0.06] overflow-hidden flex-shrink-0">
+        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MessageSquare size={18} className="text-violet-400" />
+            <h2 className="font-display font-semibold text-silver">Messages</h2>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={openNewChatModal}
+            className="h-8 px-3 rounded-lg bg-violet-600/30 hover:bg-violet-600/50 border border-violet-400/30 text-xs font-medium text-silver flex items-center gap-1.5 shadow-glow transition-all"
+          >
+            <Plus size={14} />
+            <span>New</span>
+          </motion.button>
+        </div>
+
+        {/* Search Bar */}
+        <div className="p-3 border-b border-white/[0.04]">
+          <div className="relative flex items-center">
+            <Search size={14} className="absolute left-3 text-muted" />
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl pl-8 pr-3 py-1.5 text-xs text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50 transition-all"
+            />
+          </div>
+        </div>
+
+        {/* Conversations List */}
+        <div className="flex-1 overflow-y-auto divide-y divide-white/[0.02]">
+          {loadingConversations ? (
+            <div className="p-6 text-center text-xs text-muted">Loading chats...</div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="p-8 text-center text-xs text-muted">
+              No conversations found. Start a new chat!
+            </div>
+          ) : (
+            filteredConversations.map((conv) => {
+              const isSelected = selectedConversation?.id === conv.id
+              const otherUser = conv.members.find((m) => m.id !== user?.id)
+              const online = conv.type === 'DIRECT' && isUserOnline(otherUser?.id)
+
+              return (
+                <div
+                  key={conv.id}
+                  onClick={() => setSelectedConversation(conv)}
+                  className={`flex items-center gap-3 p-3.5 cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-violet-500/[0.16] border-l-2 border-violet-400'
+                      : 'hover:bg-white/[0.03]'
+                  }`}
+                >
+                  <div className="relative flex-shrink-0">
+                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-600/40 to-cyan-500/30 border border-white/[0.08] flex items-center justify-center font-display font-semibold text-xs text-silver">
+                      {conv.type === 'DIRECT'
+                        ? conv.title.slice(0, 2).toUpperCase()
+                        : <Users size={16} className="text-cyan-400" />}
+                    </div>
+                    {conv.type === 'DIRECT' && (
+                      <span
+                        className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-void-950 ${
+                          online ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-muted/40'
+                        }`}
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium text-silver truncate">{conv.title}</h4>
+                      {conv.lastMessage && (
+                        <span className="text-[10px] text-muted whitespace-nowrap ml-2">
+                          {new Date(conv.lastMessage.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-muted truncate">
+                        {conv.lastMessage ? conv.lastMessage.content : 'No messages yet'}
+                      </p>
+                      {conv.unreadCount > 0 && (
+                        <span className="h-4 min-w-[16px] px-1 rounded-full bg-cyan-400 text-void-950 text-[10px] font-bold flex items-center justify-center ml-2">
+                          {conv.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* ===== CENTER PANE: Active Chat & Message Stream ===== */}
+      <div className="flex-1 flex flex-col glass-panel border border-white/[0.06] overflow-hidden min-w-0">
+        {selectedConversation ? (
+          <>
+            {/* Chat Header */}
+            <div className="px-6 py-3.5 border-b border-white/[0.06] bg-void-950/40 backdrop-blur-sm flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-600/40 to-cyan-500/30 border border-white/[0.08] flex items-center justify-center font-display font-semibold text-xs text-silver">
+                    {selectedConversation.type === 'DIRECT'
+                      ? selectedConversation.title.slice(0, 2).toUpperCase()
+                      : <Users size={16} className="text-cyan-400" />}
+                  </div>
+                  {selectedConversation.type === 'DIRECT' && (
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-void-950 ${
+                        isUserOnline(selectedConversation.members.find((m) => m.id !== user?.id)?.id)
+                          ? 'bg-emerald-400'
+                          : 'bg-muted/40'
+                      }`}
+                    />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-silver truncate">
+                    {selectedConversation.title}
+                  </h3>
+                  <p className="text-[11px] text-muted">
+                    {selectedConversation.type === 'DIRECT'
+                      ? isUserOnline(selectedConversation.members.find((m) => m.id !== user?.id)?.id)
+                        ? 'Online'
+                        : 'Offline'
+                      : `${selectedConversation.members.length} members`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Quick Actions (Audio / Video Call & Info) */}
+              <div className="flex items-center gap-2">
+                {selectedConversation.type === 'DIRECT' && (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={() => startCall(false)}
+                      className="h-8 w-8 rounded-lg bg-white/[0.04] hover:bg-violet-500/20 text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all"
+                      title="Start Voice Call"
+                    >
+                      <Phone size={15} />
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.92 }}
+                      onClick={() => startCall(true)}
+                      className="h-8 w-8 rounded-lg bg-white/[0.04] hover:bg-cyan-500/20 text-muted hover:text-cyan-300 border border-white/[0.06] flex items-center justify-center transition-all"
+                      title="Start Video Call"
+                    >
+                      <Video size={15} />
+                    </motion.button>
+                  </>
+                )}
+                <motion.button
+                  whileHover={{ scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setShowRightPane(!showRightPane)}
+                  className={`h-8 w-8 rounded-lg border flex items-center justify-center transition-all ${
+                    showRightPane
+                      ? 'bg-violet-500/20 text-lavender border-violet-400/40'
+                      : 'bg-white/[0.04] text-muted hover:text-lavender border-white/[0.06]'
+                  }`}
+                  title="Conversation Details"
+                >
+                  <Info size={15} />
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Message Stream */}
+            <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+              {loadingMessages ? (
+                <div className="flex items-center justify-center h-full text-xs text-muted">
+                  Loading message history...
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                  <Sparkles size={32} className="text-violet-400 mb-3 animate-pulse" />
+                  <p className="text-sm text-silver font-medium">This is the beginning of the chat</p>
+                  <p className="text-xs text-muted mt-1">Send a message or share files to collaborate in real-time.</p>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isOwn = msg.sender.id === user?.id
+
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.2 }}
+                      className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} group`}
+                    >
+                      {/* Sender Name in Group Chats */}
+                      {!isOwn && selectedConversation.type === 'GROUP' && (
+                        <span className="text-[11px] text-muted ml-3 mb-1">{msg.sender.name}</span>
+                      )}
+
+                      <div className="relative max-w-lg">
+                        {/* Message Action Bar on Hover */}
+                        <div
+                          className={`absolute -top-7 ${
+                            isOwn ? 'right-0' : 'left-0'
+                          } hidden group-hover:flex items-center gap-1 bg-void-900 border border-white/[0.08] rounded-lg px-1.5 py-0.5 shadow-lg z-10`}
+                        >
+                          <button
+                            onClick={() => setReplyingTo(msg)}
+                            className="p-1 hover:text-cyan-400 text-muted transition-colors"
+                            title="Reply"
+                          >
+                            <Reply size={12} />
+                          </button>
+                          {isOwn && !msg.isDeleted && (
+                            <button
+                              onClick={() => {
+                                setEditingMessage(msg)
+                                setInputText(msg.content)
+                              }}
+                              className="p-1 hover:text-violet-400 text-muted transition-colors"
+                              title="Edit"
+                            >
+                              <Edit2 size={12} />
+                            </button>
+                          )}
+                          {(isOwn || selectedConversation.userRole === 'ADMIN') && !msg.isDeleted && (
+                            <button
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="p-1 hover:text-rose-400 text-muted transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Reply Preview Quote */}
+                        {msg.replyToContent && (
+                          <div className="text-xs bg-black/20 border-l-2 border-violet-400 px-3 py-1.5 rounded-t-lg text-muted mb-0.5">
+                            <span className="font-semibold text-lavender">{msg.replyToSenderName}</span>: {msg.replyToContent}
+                          </div>
+                        )}
+
+                        {/* Message Bubble */}
+                        <div
+                          className={`rounded-2xl p-3.5 text-sm ${
+                            isOwn
+                              ? 'bg-gradient-to-r from-violet-600/40 to-violet-500/30 text-silver border border-violet-400/30 rounded-tr-none shadow-glow'
+                              : 'bg-white/[0.04] text-silver border border-white/[0.06] rounded-tl-none'
+                          } ${msg.isDeleted ? 'italic text-muted' : ''}`}
+                        >
+                          {/* File Attachments */}
+                          {msg.attachments && msg.attachments.length > 0 && (
+                            <div className="space-y-2 mb-2">
+                              {msg.attachments.map((file) => {
+                                const isImg = file.mimeType.startsWith('image/')
+                                const isVid = file.mimeType.startsWith('video/')
+                                const isPdf = file.mimeType === 'application/pdf'
+
+                                if (isImg) {
+                                  return (
+                                    <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.1] max-w-xs">
+                                      <img
+                                        src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                        alt={file.originalFilename}
+                                        className="w-full h-auto object-cover max-h-60"
+                                      />
+                                    </div>
+                                  )
+                                }
+
+                                if (isVid) {
+                                  return (
+                                    <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.1] max-w-xs">
+                                      <video
+                                        src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                        controls
+                                        className="w-full max-h-60"
+                                      />
+                                    </div>
+                                  )
+                                }
+
+                                return (
+                                  <a
+                                    key={file.id}
+                                    href={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                    download={file.originalFilename}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-3 p-2.5 rounded-xl bg-void-950/60 border border-white/[0.08] hover:border-violet-400/40 transition-all"
+                                  >
+                                    <FileText size={20} className="text-cyan-400 flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-medium text-silver truncate">{file.originalFilename}</p>
+                                      <p className="text-[10px] text-muted">{(file.fileSize / 1024).toFixed(1)} KB</p>
+                                    </div>
+                                    <Download size={14} className="text-muted hover:text-lavender" />
+                                  </a>
+                                )
+                              })}
+                            </div>
+                          )}
+
+                          <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+
+                          {/* Footer: Time, Edited, Read Status */}
+                          <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-muted">
+                            {msg.isEdited && <span className="italic">edited</span>}
+                            <span>
+                              {new Date(msg.createdAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                            {isOwn && (
+                              <span title={msg.isRead ? 'Read' : 'Delivered'}>
+                                {msg.isRead ? (
+                                  <CheckCheck size={14} className="text-cyan-400" />
+                                ) : (
+                                  <Check size={14} className="text-muted" />
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Typing Indicator Bar */}
+            {typingUsers.size > 0 && (
+              <div className="px-6 py-1.5 text-xs text-cyan-400/90 flex items-center gap-2">
+                <div className="flex gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-bounce" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.2s]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.4s]" />
+                </div>
+                <span>{Array.from(typingUsers).join(', ')} is typing...</span>
+              </div>
+            )}
+
+            {/* Reply / Edit Banner */}
+            {(replyingTo || editingMessage) && (
+              <div className="px-6 py-2 bg-void-900/90 border-t border-white/[0.06] flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-muted">
+                  {replyingTo ? <Reply size={14} className="text-cyan-400" /> : <Edit2 size={14} className="text-violet-400" />}
+                  <span>
+                    {replyingTo ? (
+                      <>
+                        Replying to <b className="text-silver">{replyingTo.sender.name}</b>: {replyingTo.content}
+                      </>
+                    ) : (
+                      <>Editing message...</>
+                    )}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setReplyingTo(null)
+                    setEditingMessage(null)
+                    setInputText('')
+                  }}
+                  className="text-muted hover:text-lavender"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Selected File Badges */}
+            {selectedFiles.length > 0 && (
+              <div className="px-6 py-2 bg-void-900/60 border-t border-white/[0.06] flex items-center gap-2 flex-wrap">
+                {selectedFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs text-silver">
+                    <Paperclip size={12} className="text-cyan-400" />
+                    <span className="truncate max-w-[150px]">{file.name}</span>
+                    <button
+                      onClick={() => setSelectedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                      className="text-muted hover:text-rose-400 ml-1"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+                {uploadingFiles && (
+                  <span className="text-xs text-cyan-400 ml-2">Uploading {uploadProgress}%</span>
+                )}
+              </div>
+            )}
+
+            {/* Message Composer Input */}
+            <form
+              onSubmit={handleSendMessage}
+              className="p-4 border-t border-white/[0.06] bg-void-950/40 backdrop-blur-sm flex items-center gap-3"
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                multiple
+                className="hidden"
+              />
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.9 }}
+                onClick={() => fileInputRef.current?.click()}
+                className="h-10 w-10 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all flex-shrink-0"
+                title="Attach files"
+              >
+                <Paperclip size={18} />
+              </motion.button>
+
+              <input
+                type="text"
+                placeholder="Type a message..."
+                value={inputText}
+                onChange={handleInputChange}
+                className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50 focus:shadow-glow transition-all"
+              />
+
+              <motion.button
+                type="submit"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                disabled={!inputText.trim() && selectedFiles.length === 0}
+                className="h-10 px-4 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold flex items-center justify-center gap-2 shadow-glow hover:opacity-90 disabled:opacity-40 transition-all flex-shrink-0"
+              >
+                <Send size={16} />
+              </motion.button>
+            </form>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-center p-8 text-muted">
+            <MessageSquare size={48} className="text-violet-400/40 mb-3" />
+            <p className="text-base font-semibold text-silver">Select a chat to begin</p>
+            <p className="text-xs text-muted mt-1 max-w-sm">
+              Connect with teammates through encrypted real-time messages, file sharing, and direct audio/video calling.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ===== RIGHT PANE: Conversation Details & Shared Files ===== */}
+      <AnimatePresence>
+        {showRightPane && selectedConversation && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 320, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            className="hidden lg:flex flex-col w-80 glass-panel border border-white/[0.06] overflow-hidden flex-shrink-0"
+          >
+            <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+              <h3 className="font-display font-semibold text-sm text-silver">Chat Info</h3>
+              <button onClick={() => setShowRightPane(false)} className="text-muted hover:text-lavender">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 text-center border-b border-white/[0.06]">
+              <div className="h-16 w-16 mx-auto rounded-2xl bg-gradient-to-br from-violet-600/40 to-cyan-500/30 border border-white/[0.08] flex items-center justify-center font-display font-bold text-lg text-silver mb-3 shadow-glow">
+                {selectedConversation.type === 'DIRECT'
+                  ? selectedConversation.title.slice(0, 2).toUpperCase()
+                  : <Users size={24} className="text-cyan-400" />}
+              </div>
+              <h4 className="font-semibold text-silver">{selectedConversation.title}</h4>
+              <span className="label-tracked text-[10px] text-cyan-400">{selectedConversation.type} CHAT</span>
+            </div>
+
+            {/* Members Section */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <h5 className="label-tracked text-xs text-lavender">Members ({selectedConversation.members.length})</h5>
+              <div className="space-y-2">
+                {selectedConversation.members.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between p-2 rounded-xl bg-white/[0.02]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="relative">
+                        <div className="h-7 w-7 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
+                          {m.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ${
+                            isUserOnline(m.id) ? 'bg-emerald-400' : 'bg-muted/40'
+                          }`}
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-silver">{m.name}</span>
+                    </div>
+                    {m.id === selectedConversation.createdBy?.id && (
+                      <span className="text-[10px] text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ===== NEW CHAT MODAL ===== */}
+      <AnimatePresence>
+        {showNewChatModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel w-full max-w-md p-6 border border-violet-500/30 shadow-glow"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-display font-semibold text-silver">Start Conversation</h3>
+                <button onClick={() => setShowNewChatModal(false)} className="text-muted hover:text-lavender">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Type Toggle: 1:1 or Group */}
+              <div className="flex rounded-xl bg-void-900 p-1 mb-4 border border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewChatType('DIRECT')
+                    setSelectedUserIds([])
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    newChatType === 'DIRECT' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
+                  }`}
+                >
+                  Direct Message
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewChatType('GROUP')
+                    setSelectedUserIds([])
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    newChatType === 'GROUP' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
+                  }`}
+                >
+                  Group Chat
+                </button>
+              </div>
+
+              {newChatType === 'GROUP' && (
+                <div className="mb-4">
+                  <label className="label-tracked block mb-1">Group Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Project Nova Leads"
+                    value={newGroupTitle}
+                    onChange={(e) => setNewGroupTitle(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2 text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50"
+                  />
+                </div>
+              )}
+
+              {/* User Selection List */}
+              <label className="label-tracked block mb-2">Select Teammates</label>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 mb-6">
+                {workspaceUsers.map((u) => {
+                  const isSelected = selectedUserIds.includes(u.id)
+
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => {
+                        if (newChatType === 'DIRECT') {
+                          setSelectedUserIds([u.id])
+                        } else {
+                          setSelectedUserIds((prev) =>
+                            prev.includes(u.id) ? prev.filter((id) => id !== u.id) : [...prev, u.id]
+                          )
+                        }
+                      }}
+                      className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-violet-500/20 border border-violet-400/40'
+                          : 'bg-white/[0.02] border border-transparent hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
+                          {u.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-silver">{u.name}</p>
+                          <p className="text-[10px] text-muted">{u.email}</p>
+                        </div>
+                      </div>
+                      {isSelected && <Check size={16} className="text-cyan-400" />}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowNewChatModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateConversation}
+                  disabled={selectedUserIds.length === 0 || (newChatType === 'GROUP' && !newGroupTitle.trim())}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs shadow-glow disabled:opacity-40"
+                >
+                  Start Chat
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
