@@ -2,14 +2,8 @@ import axios from 'axios'
 
 const isProd = import.meta.env.PROD
 
-export const BACKEND_URL =
-  import.meta.env.VITE_BACKEND_URL ||
-  (import.meta.env.VITE_API_URL
-    ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
-    : (isProd ? '' : 'http://localhost:8080'))
-
-export const API_BASE_URL =
-  import.meta.env.VITE_API_URL || (BACKEND_URL ? `${BACKEND_URL}/api` : '/api')
+export const BACKEND_URL = 'http://65.2.121.136'
+export const API_BASE_URL = 'http://65.2.121.136/api'
 
 export const WS_BASE_URL =
   import.meta.env.VITE_WS_URL ||
