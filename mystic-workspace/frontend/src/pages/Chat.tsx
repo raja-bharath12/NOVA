@@ -33,6 +33,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useCall } from '../context/CallContext'
 import { useToast } from '../context/ToastContext'
+import { generateFallbackTag } from '../services/authService'
 import { chatService } from '../services/chatService'
 import { fileService } from '../services/fileService'
 import { websocketService } from '../services/websocketService'
@@ -46,8 +47,11 @@ export default function Chat() {
   const { userTag: deepLinkTag } = useParams<{ userTag?: string }>()
   const navigate = useNavigate()
 
+  const effectiveTag = user?.userTag || (user ? generateFallbackTag(user.id, user.email) : '')
+
   // Conversations State
   const [conversations, setConversations] = useState<Conversation[]>([])
+
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [loadingConversations, setLoadingConversations] = useState(true)
@@ -221,16 +225,16 @@ export default function Chat() {
   }
 
   function handleCopyTag() {
-    if (!user?.userTag) return
-    navigator.clipboard.writeText(user.userTag)
+    if (!effectiveTag) return
+    navigator.clipboard.writeText(effectiveTag)
     setCopiedTag(true)
     showToast('Your Chat ID copied to clipboard!', 'success')
     setTimeout(() => setCopiedTag(false), 2000)
   }
 
   function handleCopyLink() {
-    if (!user?.userTag) return
-    const link = `${window.location.origin}/chat/u/${user.userTag}`
+    if (!effectiveTag) return
+    const link = `${window.location.origin}/chat/u/${effectiveTag}`
     navigator.clipboard.writeText(link)
     setCopiedLink(true)
     showToast('Direct Chat Link copied to clipboard!', 'success')
@@ -253,10 +257,11 @@ export default function Chat() {
 
     tag = tag.toUpperCase().replace(/^@/, '')
 
-    if (user?.userTag && tag === user.userTag.toUpperCase()) {
+    if (effectiveTag && tag === effectiveTag.toUpperCase()) {
       setTagError('This is your own Chat ID!')
       return
     }
+
 
     try {
       setTagSearching(true)
@@ -419,8 +424,8 @@ export default function Chat() {
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="text-[10px] font-mono font-semibold text-muted uppercase">MY ID:</span>
               <span className="font-mono text-xs font-bold text-cyan-300 tracking-wider truncate">
-                {user?.userTag ? (
-                  user.userTag
+                {effectiveTag ? (
+                  effectiveTag
                 ) : (
                   <span className="text-muted/60 animate-pulse text-[11px]">Generating ID...</span>
                 )}
@@ -429,7 +434,7 @@ export default function Chat() {
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={handleCopyTag}
-                disabled={!user?.userTag}
+                disabled={!effectiveTag}
                 title="Copy Chat ID"
                 className="p-1 rounded-lg bg-white/[0.04] hover:bg-violet-500/20 text-muted hover:text-cyan-300 border border-white/[0.06] transition-all disabled:opacity-40"
               >
@@ -437,7 +442,7 @@ export default function Chat() {
               </button>
               <button
                 onClick={handleCopyLink}
-                disabled={!user?.userTag}
+                disabled={!effectiveTag}
                 title="Copy Shareable Direct Chat Link"
                 className="px-1.5 py-1 rounded-lg bg-white/[0.04] hover:bg-cyan-500/20 text-muted hover:text-cyan-300 border border-white/[0.06] transition-all flex items-center gap-1 text-[10px] font-medium disabled:opacity-40"
               >
