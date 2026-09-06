@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus, ListTodo, CalendarPlus, MessageCirclePlus, VideoIcon, Upload, Palette, Sparkles, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 const ACTIONS = [
   { label: 'New Task', icon: ListTodo, to: '/tasks' },
@@ -15,6 +15,17 @@ const ACTIONS = [
 export default function RadialActionMenu() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Hide the floating + button on Chat and Meetings pages to avoid covering send/call controls
+  const isHidden =
+    location.pathname.startsWith('/chat') ||
+    location.pathname.startsWith('/meetings') ||
+    location.pathname.startsWith('/meeting')
+
+  if (isHidden) {
+    return null
+  }
 
   return (
     <div className="fixed bottom-24 md:bottom-8 right-6 md:right-8 z-40 flex flex-col items-end gap-3">
