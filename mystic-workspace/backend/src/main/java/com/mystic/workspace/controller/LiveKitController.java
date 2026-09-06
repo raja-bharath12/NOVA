@@ -15,10 +15,10 @@ import java.util.Map;
 @RequestMapping("/api/livekit")
 public class LiveKitController {
 
-    @Value("${livekit.api.key:APIMcwjm2q3DBk9}")
+    @Value("${livekit.api.key:APIPVnJzdseSC2P}")
     private String apiKey;
 
-    @Value("${livekit.api.secret:}")
+    @Value("${livekit.api.secret:2o93DHX0FeBy6K1nGORTTxHw6mw8HbBvlMCpQaBGJcO}")
     private String apiSecret;
 
     @Value("${livekit.api.url:wss://nova-fawy0jmi.livekit.cloud}")
