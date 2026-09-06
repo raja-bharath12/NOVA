@@ -31,8 +31,13 @@ public class LocalStorageService implements StorageService {
         try {
             rootLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
             Files.createDirectories(rootLocation);
-        } catch (IOException e) {
-            throw new RuntimeException("Could not initialize storage directory: " + uploadDir, e);
+        } catch (Exception e) {
+            try {
+                rootLocation = Paths.get(System.getProperty("java.io.tmpdir"), "uploads").toAbsolutePath().normalize();
+                Files.createDirectories(rootLocation);
+            } catch (Exception fallbackEx) {
+                System.err.println("Warning: Could not initialize local storage directory: " + fallbackEx.getMessage());
+            }
         }
     }
 
