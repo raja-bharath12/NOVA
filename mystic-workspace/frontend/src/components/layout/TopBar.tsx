@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, MessageSquare, Sparkles, Command } from 'lucide-react'
+import { Search, Bell, MessageSquare, Sparkles, Command, Sun, Moon, Phone, CheckSquare, Trash2, Calendar } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
+import type { AppNotification } from '../../types'
 import GlobalSearchModal from '../search/GlobalSearchModal'
 import AiAssistantDrawer from '../ai/AiAssistantDrawer'
 
 export default function TopBar() {
   const { user } = useAuth()
-  const { notifications, unreadNotifsCount, clearNotifications } = useCall()
+  const { notifications, unreadNotifsCount, clearNotifications, dismissNotification } = useCall()
   const navigate = useNavigate()
 
   const [showDropdown, setShowDropdown] = useState(false)
@@ -41,9 +42,53 @@ export default function TopBar() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  function handleOpenNotification(conversationId: number) {
+  function handleOpenNotification(notif: AppNotification) {
     setShowDropdown(false)
-    navigate('/chat')
+    if (notif.targetUrl) {
+      navigate(notif.targetUrl)
+    } else if (notif.type === 'MESSAGE') {
+      navigate('/chat')
+    } else if (notif.type === 'CALENDAR_EVENING' || notif.type === 'CALENDAR_MORNING') {
+      navigate('/calendar')
+    } else if (notif.type === 'TASK') {
+      navigate('/tasks')
+    }
+  }
+
+  function getNotificationIcon(type: AppNotification['type']) {
+    switch (type) {
+      case 'CALENDAR_EVENING':
+        return (
+          <div className="h-7 w-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Moon size={14} />
+          </div>
+        )
+      case 'CALENDAR_MORNING':
+        return (
+          <div className="h-7 w-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Sun size={14} />
+          </div>
+        )
+      case 'CALL':
+        return (
+          <div className="h-7 w-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Phone size={14} />
+          </div>
+        )
+      case 'TASK':
+        return (
+          <div className="h-7 w-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <CheckSquare size={14} />
+          </div>
+        )
+      case 'MESSAGE':
+      default:
+        return (
+          <div className="h-7 w-7 rounded-lg bg-violet-600/30 text-violet-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <MessageSquare size={14} />
+          </div>
+        )
+    }
   }
 
   return (
@@ -100,7 +145,7 @@ export default function TopBar() {
             <span className="hidden sm:inline">NOVA AI</span>
           </motion.button>
 
-          {/* Notifications Bell */}
+          {/* Notifications Bell - Desktop/Laptop only (hidden on mobile, as requested) */}
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => {
@@ -109,7 +154,8 @@ export default function TopBar() {
                 clearNotifications()
               }
             }}
-            className="relative p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] transition-colors"
+            className="relative hidden md:flex p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] transition-colors"
+            title="Notifications"
           >
             <Bell size={17} />
             {unreadNotifsCount > 0 && (
@@ -119,55 +165,81 @@ export default function TopBar() {
             )}
           </motion.button>
 
-          {/* Notifications Dropdown */}
+          {/* Notifications Dropdown (Desktop / Laptop View) */}
           <AnimatePresence>
             {showDropdown && (
               <motion.div
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 top-12 w-72 sm:w-80 max-w-[calc(100vw-2rem)] rounded-2xl glass-panel border border-violet-500/20 shadow-2xl p-4 z-50 bg-void-900/95 backdrop-blur-xl"
+                className="absolute right-0 top-12 w-80 sm:w-96 rounded-2xl glass-panel border border-violet-500/20 shadow-2xl p-4 z-50 bg-void-900/95 backdrop-blur-xl"
               >
                 <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] mb-3">
-                  <span className="font-display font-semibold text-sm text-silver">
-                    Notifications
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-display font-semibold text-sm text-silver">
+                      Notifications
+                    </span>
+                    {notifications.length > 0 && (
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                        {notifications.length}
+                      </span>
+                    )}
+                  </div>
                   {notifications.length > 0 && (
                     <button
                       onClick={clearNotifications}
-                      className="text-[11px] text-cyan-400 hover:underline"
+                      className="text-[11px] text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 transition-colors"
                     >
+                      <Trash2 size={12} />
                       Clear all
                     </button>
                   )}
                 </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-2">
+                <div className="max-h-72 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                   {notifications.length === 0 ? (
-                    <div className="text-center py-6 text-xs text-muted">
-                      No new notifications
+                    <div className="text-center py-8 text-xs text-muted flex flex-col items-center justify-center gap-2">
+                      <div className="h-10 w-10 rounded-2xl bg-white/[0.02] border border-white/[0.06] flex items-center justify-center text-muted">
+                        <Bell size={18} />
+                      </div>
+                      <p>No new notifications</p>
+                      <p className="text-[10px] text-muted/60">
+                        You'll see messages and smart calendar reminders here
+                      </p>
                     </div>
                   ) : (
-                    notifications.slice(0, 10).map((n) => (
+                    notifications.slice(0, 15).map((n) => (
                       <div
                         key={n.id}
-                        onClick={() => handleOpenNotification(n.conversationId)}
-                        className="flex items-start gap-3 p-2.5 rounded-xl bg-white/[0.03] hover:bg-violet-500/10 cursor-pointer transition-all border border-transparent hover:border-violet-400/20"
+                        onClick={() => handleOpenNotification(n)}
+                        className="group flex items-start gap-3 p-2.5 rounded-xl bg-white/[0.03] hover:bg-violet-500/10 cursor-pointer transition-all border border-transparent hover:border-violet-400/20 relative"
                       >
-                        <div className="h-7 w-7 rounded-lg bg-violet-600/30 flex items-center justify-center text-violet-400 flex-shrink-0 mt-0.5">
-                          <MessageSquare size={13} />
-                        </div>
+                        {getNotificationIcon(n.type)}
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-silver truncate">
-                            {n.sender.name}
+                            {n.title || n.senderName || 'Notification'}
                           </p>
-                          <p className="text-[11px] text-muted truncate">{n.content}</p>
-                          <span className="text-[9px] text-muted/60 mt-1 block">
-                            {new Date(n.createdAt).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
+                          <p className="text-[11px] text-muted/90 line-clamp-2 mt-0.5 leading-snug">
+                            {n.body}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-[9px] font-mono text-muted/60">
+                              {n.createdAt ? new Date(n.createdAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }) : 'Just now'}
+                            </span>
+                            {n.type === 'CALENDAR_EVENING' && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-300 font-medium">
+                                Evening Alert
+                              </span>
+                            )}
+                            {n.type === 'CALENDAR_MORNING' && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 font-medium">
+                                Morning Plan
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -176,6 +248,7 @@ export default function TopBar() {
               </motion.div>
             )}
           </AnimatePresence>
+
 
           {/* User Avatar */}
           <div

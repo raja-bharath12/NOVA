@@ -244,3 +244,17 @@ export interface GlobalSearchResult {
   meetings: Meeting[]
   whiteboards: WhiteboardItem[]
 }
+
+export interface AppNotification {
+  id: string
+  type: 'MESSAGE' | 'CALENDAR_EVENING' | 'CALENDAR_MORNING' | 'CALL' | 'TASK'
+  title: string
+  body: string
+  targetUrl?: string
+  senderName?: string
+  createdAt: string
+  read?: boolean
+  eventId?: number
+  conversationId?: number
+}
+

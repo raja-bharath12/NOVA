@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import RadialActionMenu from './RadialActionMenu'
+import NotificationPermissionBanner from '../notifications/NotificationPermissionBanner'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
@@ -16,6 +17,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           className="flex-1 w-full px-3.5 sm:px-6 md:px-10 py-4 sm:py-6 md:py-8 max-w-full"
         >
+          <NotificationPermissionBanner />
           {children}
         </motion.main>
       </div>
@@ -23,3 +25,4 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </div>
   )
 }
+

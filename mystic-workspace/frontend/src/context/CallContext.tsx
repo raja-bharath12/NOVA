@@ -2,7 +2,9 @@ import { createContext, useContext, useEffect, useState, useRef, type ReactNode 
 import { useAuth } from './AuthContext'
 import { websocketService } from '../services/websocketService'
 import { webrtcService } from '../services/webrtcService'
-import type { CallSignal, Message, PresenceEvent } from '../types'
+import { notificationService } from '../services/notificationService'
+import { eventService } from '../services/eventService'
+import type { CallSignal, Message, PresenceEvent, AppNotification } from '../types'
 
 interface CallContextValue {
   incomingCall: CallSignal | null
@@ -16,9 +18,11 @@ interface CallContextValue {
   remoteStream: MediaStream | null
   isMicMuted: boolean
   isCamOff: boolean
-  notifications: Message[]
+  notifications: AppNotification[]
   unreadNotifsCount: number
   onlineUserIds: Set<number>
+  permissionStatus: NotificationPermission
+  requestNotificationPermission: () => Promise<boolean>
   initiateCall: (targetUserId: number, targetUserName: string, isVideo: boolean) => Promise<void>
   acceptCall: () => Promise<void>
   rejectCall: () => void
@@ -26,6 +30,7 @@ interface CallContextValue {
   toggleMic: () => void
   toggleCam: () => void
   clearNotifications: () => void
+  dismissNotification: (id: string) => void
 }
 
 const CallContext = createContext<CallContextValue | undefined>(undefined)
@@ -45,9 +50,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const [isMicMuted, setIsMicMuted] = useState(false)
   const [isCamOff, setIsCamOff] = useState(false)
 
-  const [notifications, setNotifications] = useState<Message[]>([])
+  const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadNotifsCount, setUnreadNotifsCount] = useState(0)
   const [onlineUserIds, setOnlineUserIds] = useState<Set<number>>(new Set())
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(
+    notificationService.getPermissionStatus()
+  )
 
   const activeCallRef = useRef(activeCall)
   activeCallRef.current = activeCall
@@ -65,11 +73,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
     })
 
     const unsubNotifs = websocketService.subscribeToUserNotifications(
-      (msg) => {
-        setNotifications((prev) => [msg, ...prev])
-        setUnreadNotifsCount((prev) => prev + 1)
+      (msg: Message) => {
+        const notif = notificationService.notifyNewChatMessage(msg, user.id)
+        if (notif) {
+          setNotifications((prev) => [notif, ...prev])
+          setUnreadNotifsCount((prev) => prev + 1)
+        }
       },
-      (signal) => {
+      (signal: CallSignal) => {
         handleIncomingCallSignal(signal)
       }
     )
@@ -86,18 +97,46 @@ export function CallProvider({ children }: { children: ReactNode }) {
       })
     })
 
+    checkCalendarReminders()
+    const reminderInterval = setInterval(checkCalendarReminders, 5 * 60 * 1000)
+
     return () => {
       unsubWS()
       unsubNotifs()
       unsubPresence()
+      clearInterval(reminderInterval)
       websocketService.disconnect()
     }
   }, [user])
 
+  async function checkCalendarReminders() {
+    try {
+      const events = await eventService.list()
+      const newReminders = notificationService.evaluateCalendarReminders(events)
+      if (newReminders.length > 0) {
+        setNotifications((prev) => [...newReminders, ...prev])
+        setUnreadNotifsCount((prev) => prev + newReminders.length)
+      }
+    } catch (err) {
+      // Background check error (ignore silent fails)
+    }
+  }
+
+  async function requestNotificationPermission(): Promise<boolean> {
+    const granted = await notificationService.requestPermission()
+    setPermissionStatus(notificationService.getPermissionStatus())
+    if (granted) {
+      notificationService.showNativeNotification('🔔 Notifications Enabled', {
+        body: 'You will receive instant alerts for messages, calls, and calendar reminders.',
+        url: '/',
+      })
+    }
+    return granted
+  }
+
   function handleIncomingCallSignal(signal: CallSignal) {
     if (signal.type === 'CALL_REQUEST') {
       if (activeCallRef.current) {
-        // Already on another call
         websocketService.sendCallSignal({
           type: 'CALL_BUSY',
           senderId: user!.id,
@@ -108,6 +147,12 @@ export function CallProvider({ children }: { children: ReactNode }) {
         return
       }
       setIncomingCall(signal)
+
+      notificationService.showNativeNotification(`📞 Incoming ${signal.isVideo ? 'Video' : 'Voice'} Call`, {
+        body: `${signal.senderName || 'A teammate'} is calling you...`,
+        url: '/chat',
+        tag: 'incoming-call',
+      })
     } else if (signal.type === 'CALL_REJECT' || signal.type === 'CALL_BUSY' || signal.type === 'CALL_END') {
       endCall()
     } else if (signal.type === 'OFFER' || signal.type === 'ANSWER' || signal.type === 'ICE_CANDIDATE') {
@@ -118,39 +163,31 @@ export function CallProvider({ children }: { children: ReactNode }) {
   async function initiateCall(targetUserId: number, targetUserName: string, isVideo: boolean) {
     if (!user) return
 
-    setActiveCall({
-      targetUserId,
-      targetUserName,
-      isVideo,
-      status: 'RINGING',
-    })
-
-    // Send call request to alert target
-    websocketService.sendCallSignal({
-      type: 'CALL_REQUEST',
-      senderId: user.id,
-      senderName: user.name,
-      targetUserId,
-      isVideo,
-    })
-
     try {
+      setActiveCall({
+        targetUserId,
+        targetUserName,
+        isVideo,
+        status: 'RINGING',
+      })
+
       await webrtcService.startCall(
         targetUserId,
         user.id,
         user.name,
         isVideo,
-        (stream) => {
-          setRemoteStream(stream)
+        (rStream) => {
+          setRemoteStream(rStream)
           setActiveCall((prev) => (prev ? { ...prev, status: 'CONNECTED' } : null))
         },
         () => {
           endCall()
         }
       )
+
       setLocalStream(webrtcService.getLocalStream())
     } catch (err) {
-      console.error('Failed to initiate WebRTC call', err)
+      console.error('Failed to initiate call:', err)
       endCall()
     }
   }
@@ -158,39 +195,30 @@ export function CallProvider({ children }: { children: ReactNode }) {
   async function acceptCall() {
     if (!incomingCall || !user) return
 
-    const caller = incomingCall
-    setIncomingCall(null)
-
-    setActiveCall({
-      targetUserId: caller.senderId,
-      targetUserName: caller.senderName,
-      isVideo: caller.isVideo,
-      status: 'CONNECTED',
-    })
-
-    websocketService.sendCallSignal({
-      type: 'CALL_ACCEPT',
-      senderId: user.id,
-      senderName: user.name,
-      targetUserId: caller.senderId,
-      isVideo: caller.isVideo,
-    })
-
     try {
+      setActiveCall({
+        targetUserId: incomingCall.senderId,
+        targetUserName: incomingCall.senderName,
+        isVideo: incomingCall.isVideo,
+        status: 'CONNECTED',
+      })
+
       await webrtcService.acceptCall(
-        caller,
+        incomingCall,
         user.id,
         user.name,
-        (stream) => {
-          setRemoteStream(stream)
+        (rStream) => {
+          setRemoteStream(rStream)
         },
         () => {
           endCall()
         }
       )
+
       setLocalStream(webrtcService.getLocalStream())
+      setIncomingCall(null)
     } catch (err) {
-      console.error('Failed to accept call', err)
+      console.error('Failed to accept call:', err)
       endCall()
     }
   }
@@ -240,6 +268,10 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setUnreadNotifsCount(0)
   }
 
+  function dismissNotification(id: string) {
+    setNotifications((prev) => prev.filter((n) => n.id !== id))
+  }
+
   return (
     <CallContext.Provider
       value={{
@@ -252,6 +284,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         notifications,
         unreadNotifsCount,
         onlineUserIds,
+        permissionStatus,
+        requestNotificationPermission,
         initiateCall,
         acceptCall,
         rejectCall,
@@ -259,6 +293,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
         toggleMic,
         toggleCam,
         clearNotifications,
+        dismissNotification,
       }}
     >
       {children}
