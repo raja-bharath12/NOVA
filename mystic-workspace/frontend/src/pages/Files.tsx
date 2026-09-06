@@ -159,7 +159,7 @@ export default function Files() {
           setIsDragging(false)
           handleFileUpload(e.dataTransfer.files)
         }}
-        className={`glass-panel p-8 text-center border-2 border-dashed transition-all cursor-pointer ${
+        className={`glass-panel p-5 sm:p-8 text-center border-2 border-dashed transition-all cursor-pointer ${
           isDragging
             ? 'border-cyan-400 bg-cyan-500/10 shadow-glow-cyan'
             : 'border-white/[0.1] hover:border-violet-400/40 bg-white/[0.02]'
@@ -167,8 +167,8 @@ export default function Files() {
         onClick={() => fileInputRef.current?.click()}
       >
         <UploadCloud
-          size={36}
-          className={`mx-auto mb-3 transition-colors ${
+          size={32}
+          className={`mx-auto mb-2 sm:mb-3 transition-colors ${
             isDragging ? 'text-cyan-400 animate-bounce' : 'text-violet-400'
           }`}
         />

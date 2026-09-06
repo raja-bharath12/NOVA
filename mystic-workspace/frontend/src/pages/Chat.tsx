@@ -28,6 +28,7 @@ import {
   Hash,
   UserCheck,
   ArrowRight,
+  ChevronLeft,
   ExternalLink,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -385,9 +386,13 @@ export default function Chat() {
   )
 
   return (
-    <div className="flex h-[calc(100vh-100px)] w-full gap-4 overflow-hidden">
+    <div className="flex h-[calc(100vh-125px)] md:h-[calc(100vh-100px)] w-full gap-4 overflow-hidden relative">
       {/* ===== LEFT PANE: Conversations List ===== */}
-      <div className="flex flex-col w-full md:w-80 lg:w-96 glass-panel border border-white/[0.06] overflow-hidden flex-shrink-0">
+      <div
+        className={`flex-col w-full md:w-80 lg:w-96 glass-panel border border-white/[0.06] overflow-hidden flex-shrink-0 ${
+          selectedConversation ? 'hidden md:flex' : 'flex'
+        }`}
+      >
         <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageSquare size={18} className="text-violet-400" />
@@ -523,12 +528,25 @@ export default function Chat() {
       </div>
 
       {/* ===== CENTER PANE: Active Chat & Message Stream ===== */}
-      <div className="flex-1 flex flex-col glass-panel border border-white/[0.06] overflow-hidden min-w-0">
+      <div
+        className={`flex-1 flex-col glass-panel border border-white/[0.06] overflow-hidden min-w-0 ${
+          !selectedConversation ? 'hidden md:flex' : 'flex'
+        }`}
+      >
         {selectedConversation ? (
           <>
             {/* Chat Header */}
-            <div className="px-6 py-3.5 border-b border-white/[0.06] bg-void-950/40 backdrop-blur-sm flex items-center justify-between">
-              <div className="flex items-center gap-3 min-w-0">
+            <div className="px-3.5 sm:px-6 py-3 sm:py-3.5 border-b border-white/[0.06] bg-void-950/40 backdrop-blur-sm flex items-center justify-between">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                {/* Mobile Back Button */}
+                <button
+                  onClick={() => setSelectedConversation(null)}
+                  className="md:hidden p-1.5 -ml-1 rounded-xl text-muted hover:text-silver hover:bg-white/[0.06] transition-colors"
+                  title="Back to Conversations"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+
                 <div className="relative flex-shrink-0">
                   <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-600/40 to-cyan-500/30 border border-white/[0.08] flex items-center justify-center font-display font-semibold text-xs text-silver">
                     {selectedConversation.type === 'DIRECT'
@@ -931,6 +949,78 @@ export default function Chat() {
               </div>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ===== RIGHT PANE: Conversation Details Sheet (Mobile / Tablet) ===== */}
+      <AnimatePresence>
+        {showRightPane && selectedConversation && (
+          <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowRightPane(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 240 }}
+              className="relative z-10 w-full bg-void-900/95 border-t border-purple-500/25 rounded-t-3xl shadow-2xl p-5 pb-8 backdrop-blur-2xl flex flex-col max-h-[85vh] overflow-y-auto"
+            >
+              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto -mt-1 mb-2" />
+              <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+                <h3 className="font-display font-semibold text-sm text-silver">Conversation Info</h3>
+                <button
+                  onClick={() => setShowRightPane(false)}
+                  className="p-1.5 rounded-xl bg-white/[0.04] text-muted hover:text-lavender"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="p-4 text-center border-b border-white/[0.06]">
+                <div className="h-14 w-14 mx-auto rounded-2xl bg-gradient-to-br from-violet-600/40 to-cyan-500/30 border border-white/[0.08] flex items-center justify-center font-display font-bold text-base text-silver mb-2 shadow-glow">
+                  {selectedConversation.type === 'DIRECT'
+                    ? selectedConversation.title.slice(0, 2).toUpperCase()
+                    : <Users size={20} className="text-cyan-400" />}
+                </div>
+                <h4 className="font-semibold text-silver">{selectedConversation.title}</h4>
+                <span className="label-tracked text-[10px] text-cyan-400">{selectedConversation.type} CHAT</span>
+              </div>
+
+              {/* Members Section */}
+              <div className="flex-1 overflow-y-auto pt-3 space-y-2.5">
+                <h5 className="label-tracked text-xs text-lavender">Members ({selectedConversation.members.length})</h5>
+                <div className="space-y-2">
+                  {selectedConversation.members.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03]">
+                      <div className="flex items-center gap-2.5">
+                        <div className="relative">
+                          <div className="h-7 w-7 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
+                            {m.name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ${
+                              isUserOnline(m.id) ? 'bg-emerald-400' : 'bg-muted/40'
+                            }`}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-silver">{m.name}</span>
+                      </div>
+                      {m.id === selectedConversation.createdBy?.id && (
+                        <span className="text-[10px] text-violet-400 bg-violet-500/10 px-1.5 py-0.5 rounded">
+                          Admin
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

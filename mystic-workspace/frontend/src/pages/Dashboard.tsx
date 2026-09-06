@@ -68,7 +68,7 @@ export default function Dashboard() {
   ).length
 
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-6 sm:space-y-8">
       {/* Greeting & Date Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -79,7 +79,7 @@ export default function Dashboard() {
               day: 'numeric',
             })}
           </p>
-          <h1 className="text-3xl md:text-4xl font-semibold">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-semibold">
             <span className="text-gradient">{greeting()},</span>{' '}
             <span className="text-silver">{user?.name?.split(' ')[0] ?? 'there'}</span>
           </h1>
@@ -89,21 +89,21 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => navigate('/meetings')}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold transition-all hover:scale-105"
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold transition-all hover:scale-105"
           >
             <Video className="w-3.5 h-3.5 text-purple-400" />
             <span>Start Meeting</span>
           </button>
           <button
             onClick={() => navigate('/whiteboard')}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all hover:scale-105"
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all hover:scale-105"
           >
             <Palette className="w-3.5 h-3.5 text-indigo-400" />
             <span>New Canvas</span>
           </button>
           <button
             onClick={() => navigate('/tasks')}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-semibold transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 text-xs font-semibold transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Task</span>
@@ -112,51 +112,51 @@ export default function Dashboard() {
       </div>
 
       {/* Metric Counters Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <GlassPanel tilt>
-          <CheckSquare className="text-violet-400 mb-3" size={20} />
-          <p className="text-3xl font-display font-semibold">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <GlassPanel tilt className="p-4 sm:p-5">
+          <CheckSquare className="text-violet-400 mb-2 sm:mb-3" size={18} />
+          <p className="text-2xl sm:text-3xl font-display font-semibold">
             <AnimatedCounter value={tasks.length} />
           </p>
-          <p className="label-tracked mt-1">Total Tasks</p>
+          <p className="label-tracked mt-1 text-[11px] sm:text-xs">Total Tasks</p>
         </GlassPanel>
 
-        <GlassPanel tilt>
-          <CheckSquare className="text-emerald-400 mb-3" size={20} />
-          <p className="text-3xl font-display font-semibold">
+        <GlassPanel tilt className="p-4 sm:p-5">
+          <CheckSquare className="text-emerald-400 mb-2 sm:mb-3" size={18} />
+          <p className="text-2xl sm:text-3xl font-display font-semibold">
             <AnimatedCounter value={completed} />
           </p>
-          <p className="label-tracked mt-1">Completed</p>
+          <p className="label-tracked mt-1 text-[11px] sm:text-xs">Completed</p>
         </GlassPanel>
 
-        <GlassPanel tilt>
-          <Video className="text-purple-400 mb-3" size={20} />
-          <p className="text-3xl font-display font-semibold">
+        <GlassPanel tilt className="p-4 sm:p-5">
+          <Video className="text-purple-400 mb-2 sm:mb-3" size={18} />
+          <p className="text-2xl sm:text-3xl font-display font-semibold">
             <AnimatedCounter value={meetings.length} />
           </p>
-          <p className="label-tracked mt-1">Meeting Rooms</p>
+          <p className="label-tracked mt-1 text-[11px] sm:text-xs">Meeting Rooms</p>
         </GlassPanel>
 
-        <GlassPanel tilt>
-          <Palette className="text-pink-400 mb-3" size={20} />
-          <p className="text-3xl font-display font-semibold">
+        <GlassPanel tilt className="p-4 sm:p-5">
+          <Palette className="text-pink-400 mb-2 sm:mb-3" size={18} />
+          <p className="text-2xl sm:text-3xl font-display font-semibold">
             <AnimatedCounter value={whiteboards.length} />
           </p>
-          <p className="label-tracked mt-1">Whiteboards</p>
+          <p className="label-tracked mt-1 text-[11px] sm:text-xs">Whiteboards</p>
         </GlassPanel>
       </div>
 
       {/* AI Intelligence Insight Banner */}
       {analytics?.productivityInsight && (
-        <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent border border-purple-500/20 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
-              <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
+        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent border border-purple-500/20 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start gap-3 sm:gap-3.5">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0 mt-0.5">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 animate-pulse" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">NOVA AI Workspace Summary</h3>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs sm:text-sm font-bold text-white">NOVA AI Workspace Summary</h3>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">
                   {Math.round(analytics.completionRate)}% Velocity
                 </span>
               </div>
@@ -169,7 +169,7 @@ export default function Dashboard() {
       )}
 
       {/* Main Content Multi-Column Grid */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
         {/* Today's Tasks */}
         <GlassPanel>
           <div className="flex items-center justify-between mb-4">

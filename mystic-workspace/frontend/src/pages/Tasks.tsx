@@ -201,11 +201,11 @@ export default function Tasks() {
                   placeholder="What needs to get done?"
                   className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-silver focus:outline-none focus:border-violet-400/50 focus:shadow-glow transition-all"
                 />
-            <div className="flex gap-3">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2 sm:gap-3">
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Priority)}
-                className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-silver focus:outline-none"
+                className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs sm:text-sm text-silver focus:outline-none flex-1 sm:flex-none"
               >
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
@@ -215,25 +215,26 @@ export default function Tasks() {
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-silver focus:outline-none"
-              />
+                className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs sm:text-sm text-silver focus:outline-none flex-1 sm:flex-none"
+              >
+              </input>
               <button
                 type="submit"
-                className="ml-auto rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-2 text-sm font-medium text-void-950"
+                className="w-full sm:w-auto sm:ml-auto rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-5 py-2 text-xs sm:text-sm font-semibold text-void-950 shadow-glow"
               >
-                Add
+                Add Task
               </button>
             </div>
           </motion.form>
         )}
       </AnimatePresence>
 
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-1.5 sm:gap-2 mb-5 overflow-x-auto pb-1 scrollbar-none">
         {(['all', 'today', 'upcoming', 'completed'] as ViewFilter[]).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
-            className={`label-tracked rounded-full px-3 py-1.5 border transition-colors capitalize ${
+            className={`label-tracked rounded-full px-3 py-1.5 border text-xs transition-colors capitalize whitespace-nowrap ${
               view === v ? 'border-violet-400/50 text-lavender bg-violet-500/10' : 'border-white/[0.06] text-muted hover:text-lavender'
             }`}
           >

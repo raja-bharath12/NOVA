@@ -96,7 +96,7 @@ export default function Meetings() {
   }
 
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-6 sm:space-y-8">
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -108,12 +108,12 @@ export default function Meetings() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowScheduleModal(true)}
-            className="h-10 px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-silver border border-white/[0.08] text-xs font-medium flex items-center gap-2 transition-all"
+            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-silver border border-white/[0.08] text-xs font-medium flex items-center gap-2 transition-all"
           >
             <CalendarIcon size={15} />
             <span>Schedule</span>
@@ -124,7 +124,7 @@ export default function Meetings() {
             whileTap={{ scale: 0.95 }}
             disabled={creating}
             onClick={handleStartInstantMeeting}
-            className="h-10 px-5 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs flex items-center gap-2 shadow-glow hover:opacity-90 disabled:opacity-50 transition-all"
+            className="h-9 sm:h-10 px-4 sm:px-5 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs flex items-center gap-2 shadow-glow hover:opacity-90 disabled:opacity-50 transition-all"
           >
             <Video size={16} />
             <span>{creating ? 'Creating Room...' : 'Start Instant Meeting'}</span>
@@ -133,7 +133,7 @@ export default function Meetings() {
       </div>
 
       {/* Quick Join & Cards Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         {/* Instant Start Card */}
         <GlassPanel tilt className="flex flex-col justify-between p-6">
           <div>

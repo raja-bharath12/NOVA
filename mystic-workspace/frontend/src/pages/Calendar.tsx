@@ -306,21 +306,22 @@ export default function Calendar() {
           {/* Month Calendar Grid (3 columns on large screens) */}
           <div className="lg:col-span-3 glass-panel p-4 md:p-6 overflow-hidden flex flex-col">
             {/* Weekdays Header */}
-            <div className="grid grid-cols-7 gap-2 mb-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2">
               {DAY_NAMES.map((d, i) => (
                 <div
                   key={d}
-                  className={`text-center py-2 text-xs font-semibold uppercase tracking-wider ${
+                  className={`text-center py-1 sm:py-2 text-[10px] sm:text-xs font-semibold uppercase tracking-wider ${
                     i === 0 || i === 6 ? 'text-purple-400/70' : 'text-silver/60'
                   }`}
                 >
-                  {d}
+                  <span className="hidden sm:inline">{d}</span>
+                  <span className="sm:hidden">{d.slice(0, 1)}</span>
                 </div>
               ))}
             </div>
 
             {/* Calendar Days Matrix */}
-            <div className="grid grid-cols-7 gap-2 flex-1 auto-rows-fr min-h-[540px]">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 flex-1 auto-rows-fr min-h-[320px] sm:min-h-[540px]">
               {calendarDays.map((dayObj, index) => {
                 const dayEvents = getEventsForDate(dayObj.date)
                 const isSelected =
@@ -332,7 +333,7 @@ export default function Calendar() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setSelectedDate(dayObj.date)}
-                    className={`relative p-2 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group min-h-[90px] ${
+                    className={`relative p-1 sm:p-2 rounded-xl sm:rounded-2xl border transition-all cursor-pointer flex flex-col justify-between group min-h-[46px] sm:min-h-[90px] ${
                       isSelected
                         ? 'bg-violet-600/20 border-violet-400 shadow-glow'
                         : dayObj.isToday
@@ -345,7 +346,7 @@ export default function Calendar() {
                     {/* Date Number & Quick Add Button */}
                     <div className="flex items-center justify-between">
                       <span
-                        className={`text-xs font-semibold rounded-full h-6 w-6 flex items-center justify-center ${
+                        className={`text-[11px] sm:text-xs font-semibold rounded-full h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center ${
                           dayObj.isToday
                             ? 'bg-cyan-400 text-void-950 font-bold shadow-glow'
                             : isSelected
@@ -364,15 +365,27 @@ export default function Calendar() {
                           e.stopPropagation()
                           openCreateModalForDate(dayObj.date)
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-white/10 text-muted hover:text-cyan-400 transition-opacity"
+                        className="hidden sm:block opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-white/10 text-muted hover:text-cyan-400 transition-opacity"
                         title="Add event on this date"
                       >
                         <Plus size={12} />
                       </button>
                     </div>
 
-                    {/* Day Events Indicator Chips */}
-                    <div className="space-y-1 mt-1 flex-1 overflow-hidden">
+                    {/* Mobile Dot Indicators */}
+                    {dayEvents.length > 0 && (
+                      <div className="sm:hidden flex items-center justify-center gap-0.5 mt-0.5">
+                        {dayEvents.slice(0, 3).map((_, evIdx) => (
+                          <span
+                            key={evIdx}
+                            className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(111,227,224,0.8)]"
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Desktop Day Events Indicator Chips */}
+                    <div className="hidden sm:block space-y-1 mt-1 flex-1 overflow-hidden">
                       {dayEvents.slice(0, 2).map((ev) => (
                         <div
                           key={ev.id}

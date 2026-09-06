@@ -93,46 +93,46 @@ export default function Whiteboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07060B] text-white p-6 relative overflow-hidden flex flex-col">
+    <div className="w-full relative flex flex-col space-y-6">
       {/* Aurora Ambient Glows */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 -right-40 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
 
       {activeBoard ? (
         /* Active Board Canvas View */
-        <div className="flex-1 flex flex-col gap-4 relative z-10 max-w-7xl w-full mx-auto h-[calc(100vh-100px)]">
+        <div className="flex-1 flex flex-col gap-4 relative z-10 max-w-7xl w-full mx-auto h-[calc(100vh-125px)] md:h-[calc(100vh-100px)]">
           {/* Header Bar */}
-          <div className="flex items-center justify-between bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-2xl px-5 py-3 shadow-xl">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 shadow-xl flex-wrap gap-2">
+            <div className="flex items-center gap-3 sm:gap-4">
               <button
                 onClick={() => {
                   setActiveBoard(null)
                   loadWhiteboards()
                 }}
-                className="flex items-center gap-2 text-sm text-purple-300 hover:text-white bg-purple-500/10 hover:bg-purple-500/20 px-3.5 py-1.5 rounded-xl border border-purple-500/20 transition-all"
+                className="flex items-center gap-2 text-xs sm:text-sm text-purple-300 hover:text-white bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 rounded-xl border border-purple-500/20 transition-all"
               >
-                <ArrowLeft className="w-4 h-4" />
+                <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span>All Boards</span>
               </button>
 
               <div className="h-5 w-px bg-white/10" />
 
               <div>
-                <h1 className="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+                <h1 className="text-sm sm:text-lg font-bold text-white tracking-wide flex items-center gap-2">
                   <span>{activeBoard.title}</span>
                   {activeBoard.meetingRoomCode && (
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      Linked Meeting: {activeBoard.meetingRoomCode}
+                    <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                      Linked: {activeBoard.meetingRoomCode}
                     </span>
                   )}
                 </h1>
-                <p className="text-xs text-white/40">
+                <p className="text-[11px] text-white/40">
                   Last updated: {new Date(activeBoard.updatedAt).toLocaleTimeString()}
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={() => {
                   const url = window.location.href
@@ -161,16 +161,16 @@ export default function Whiteboard() {
         /* Whiteboard Gallery & Hub */
         <div className="w-full relative z-10 flex-1 flex flex-col">
           {/* Top Banner */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent p-6 rounded-3xl border border-purple-500/20 backdrop-blur-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-transparent p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-purple-500/20 backdrop-blur-xl">
             <div>
               <div className="flex items-center gap-2 text-purple-400 font-mono text-xs uppercase tracking-widest mb-1">
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
                 <span>Stage 4 • Real-Time Spatial Collaboration</span>
               </div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-white">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                 Quantum Whiteboards
               </h1>
-              <p className="text-sm text-white/60 mt-1 max-w-xl">
+              <p className="text-xs sm:text-sm text-white/60 mt-1 max-w-xl">
                 Collaborate simultaneously with infinite vectors, low-latency delta synchronization,
                 and real-time cursor presence.
               </p>
@@ -178,9 +178,9 @@ export default function Whiteboard() {
 
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold px-5 py-3 rounded-2xl shadow-lg shadow-purple-600/30 transition-all hover:scale-105 active:scale-95"
+              className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl shadow-lg shadow-purple-600/30 transition-all hover:scale-105 active:scale-95 text-xs sm:text-sm"
             >
-              <Plus className="w-5 h-5" />
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
               <span>New Whiteboard</span>
             </button>
           </div>

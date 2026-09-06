@@ -40,16 +40,16 @@ export default function Settings() {
       </div>
 
       {/* Profile Overview Card */}
-      <GlassPanel className="p-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-white/[0.06]">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-violet-500 via-indigo-500 to-cyan-500 flex items-center justify-center text-xl font-bold text-void-950 font-display shadow-glow">
+      <GlassPanel className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 sm:pb-6 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-violet-500 via-indigo-500 to-cyan-500 flex items-center justify-center text-lg sm:text-xl font-bold text-void-950 font-display shadow-glow flex-shrink-0">
               {user?.name?.slice(0, 2).toUpperCase() || 'NO'}
             </div>
             <div>
-              <h2 className="text-lg font-display font-semibold text-silver">{user?.name}</h2>
-              <p className="text-xs text-muted">{user?.email}</p>
-              <div className="mt-2 flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-display font-semibold text-silver">{user?.name}</h2>
+              <p className="text-xs text-muted truncate max-w-[200px] sm:max-w-none">{user?.email}</p>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-400/20">
                   <Hash size={11} />
                   {effectiveTag || 'Generating...'}

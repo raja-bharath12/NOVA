@@ -48,8 +48,16 @@ export default function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex items-center justify-between px-6 md:px-10 py-5 backdrop-blur-md bg-void-950/40 border-b border-white/[0.04]">
-        {/* Search Trigger Bar */}
+      <header className="sticky top-0 z-20 flex items-center justify-between px-4 py-3 sm:px-6 md:px-10 md:py-5 backdrop-blur-md bg-void-950/50 border-b border-white/[0.04]">
+        {/* Mobile Brand Logo & Name */}
+        <div className="flex md:hidden items-center gap-2.5">
+          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-400 to-cyan-400 shadow-glow flex-shrink-0" />
+          <span className="font-display font-bold text-xs tracking-[0.14em] text-gradient">
+            MYSTIC
+          </span>
+        </div>
+
+        {/* Desktop Search Trigger Bar */}
         <div
           onClick={() => setShowSearchModal(true)}
           className="relative hidden sm:flex items-center w-full max-w-xs cursor-pointer group"
@@ -69,17 +77,27 @@ export default function TopBar() {
           </kbd>
         </div>
 
-        <div className="flex items-center gap-3.5 ml-auto relative" ref={dropdownRef}>
+        <div className="flex items-center gap-2 sm:gap-3.5 ml-auto relative" ref={dropdownRef}>
+          {/* Mobile Search Trigger Icon */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setShowSearchModal(true)}
+            className="sm:hidden p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] transition-colors"
+            title="Search Workspace"
+          >
+            <Search size={16} />
+          </motion.button>
+
           {/* AI Co-Pilot Trigger Button */}
           <motion.button
             whileTap={{ scale: 0.92 }}
             whileHover={{ scale: 1.05 }}
             onClick={() => setShowAiDrawer(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600/20 to-indigo-600/20 hover:from-purple-600/30 hover:to-indigo-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold shadow-glow transition-all"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600/20 to-indigo-600/20 hover:from-purple-600/30 hover:to-indigo-600/30 text-purple-300 border border-purple-500/30 text-xs font-semibold shadow-glow transition-all"
             title="Open NOVA AI Assistant"
           >
             <Sparkles size={14} className="text-purple-400 animate-pulse" />
-            <span className="hidden md:inline">NOVA AI</span>
+            <span className="hidden sm:inline">NOVA AI</span>
           </motion.button>
 
           {/* Notifications Bell */}
@@ -93,7 +111,7 @@ export default function TopBar() {
             }}
             className="relative p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] transition-colors"
           >
-            <Bell size={18} />
+            <Bell size={17} />
             {unreadNotifsCount > 0 && (
               <span className="absolute -top-1 -right-1 h-3.5 min-w-[14px] px-1 rounded-full bg-cyan-400 text-void-950 text-[9px] font-bold flex items-center justify-center animate-pulseGlow">
                 {unreadNotifsCount}
@@ -108,7 +126,7 @@ export default function TopBar() {
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className="absolute right-0 top-12 w-80 rounded-2xl glass-panel border border-violet-500/20 shadow-2xl p-4 z-50 bg-void-900/95 backdrop-blur-xl"
+                className="absolute right-0 top-12 w-72 sm:w-80 max-w-[calc(100vw-2rem)] rounded-2xl glass-panel border border-violet-500/20 shadow-2xl p-4 z-50 bg-void-900/95 backdrop-blur-xl"
               >
                 <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] mb-3">
                   <span className="font-display font-semibold text-sm text-silver">
@@ -160,7 +178,11 @@ export default function TopBar() {
           </AnimatePresence>
 
           {/* User Avatar */}
-          <div className="h-9 w-9 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-xs font-medium text-void-950 font-display">
+          <div
+            onClick={() => navigate('/settings')}
+            className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-xs font-medium text-void-950 font-display cursor-pointer hover:scale-105 transition-transform"
+            title="Go to Settings"
+          >
             {initials.toUpperCase()}
           </div>
         </div>
