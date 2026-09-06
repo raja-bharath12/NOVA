@@ -128,7 +128,27 @@ export default function Chat() {
     }
   }
 
-  // Subscribe to real-time conversation events
+  // Auto-scroll on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, typingUsers])
+
+  async function loadConversations(silent = false) {
+    try {
+      if (!silent) setLoadingConversations(true)
+      const data = await chatService.getConversations()
+      setConversations(data)
+      if (data.length > 0 && !selectedConversation) {
+        setSelectedConversation(data[0])
+      }
+    } catch (err) {
+      console.error('Failed to load conversations', err)
+    } finally {
+      if (!silent) setLoadingConversations(false)
+    }
+  }
+
+  // Subscribe to real-time conversation events and add fallback polling
   useEffect(() => {
     if (!selectedConversation) return
 
@@ -137,7 +157,6 @@ export default function Chat() {
       .getMessages(selectedConversation.id)
       .then((msgs) => {
         setMessages(msgs)
-        // Mark latest unread messages as read
         if (msgs.length > 0) {
           const lastMsg = msgs[msgs.length - 1]
           chatService.markAsRead(selectedConversation.id, lastMsg.id)
@@ -201,28 +220,48 @@ export default function Chat() {
       }
     )
 
-    return () => unsub()
+    // Resilient background sync interval (checks every 2.5s without flashing loaders)
+    const syncTimer = setInterval(async () => {
+      try {
+        const latestMsgs = await chatService.getMessages(selectedConversation.id)
+        setMessages((prev) => {
+          if (
+            latestMsgs.length !== prev.length ||
+            (latestMsgs.length > 0 &&
+              latestMsgs[latestMsgs.length - 1].id !== prev[prev.length - 1]?.id)
+          ) {
+            return latestMsgs
+          }
+          return prev
+        })
+      } catch (err) {
+        // Silent sync error
+      }
+    }, 2500)
+
+    return () => {
+      unsub()
+      clearInterval(syncTimer)
+    }
   }, [selectedConversation?.id])
 
-  // Auto-scroll on new message
+  // Periodic conversations list refresh
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, typingUsers])
+    const listTimer = setInterval(() => {
+      loadConversations(true)
+    }, 4000)
 
-  async function loadConversations() {
-    try {
-      setLoadingConversations(true)
-      const data = await chatService.getConversations()
-      setConversations(data)
-      if (data.length > 0 && !selectedConversation) {
-        setSelectedConversation(data[0])
+    const unsubWS = websocketService.onConnectionChange((connected) => {
+      if (connected) {
+        loadConversations(true)
       }
-    } catch (err) {
-      console.error('Failed to load conversations', err)
-    } finally {
-      setLoadingConversations(false)
+    })
+
+    return () => {
+      clearInterval(listTimer)
+      unsubWS()
     }
-  }
+  }, [])
 
   async function loadWorkspaceUsers(query = '') {
     try {
@@ -423,12 +462,23 @@ export default function Chat() {
         }
       }
 
-      await chatService.sendMessage(
+      const sentMsg = await chatService.sendMessage(
         selectedConversation.id,
         inputText.trim() || undefined,
         replyingTo ? replyingTo.id : undefined,
         attachmentIds.length > 0 ? attachmentIds : undefined
       )
+
+      if (sentMsg) {
+        setMessages((prev) => (prev.some((m) => m.id === sentMsg.id) ? prev : [...prev, sentMsg]))
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === selectedConversation.id
+              ? { ...c, lastMessage: sentMsg, updatedAt: sentMsg.createdAt }
+              : c
+          )
+        )
+      }
 
       setInputText('')
       setReplyingTo(null)
@@ -436,6 +486,7 @@ export default function Chat() {
       setUploadProgress(0)
     } catch (err) {
       console.error('Failed to send message', err)
+      showToast('Failed to send message.', 'warning')
     } finally {
       setUploadingFiles(false)
     }
