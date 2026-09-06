@@ -27,6 +27,8 @@ import {
   Link as LinkIcon,
   Hash,
   UserCheck,
+  UserPlus,
+  Clock,
   ArrowRight,
   ChevronLeft,
   ExternalLink,
@@ -36,10 +38,11 @@ import { useCall } from '../context/CallContext'
 import { useToast } from '../context/ToastContext'
 import { generateFallbackTag } from '../services/authService'
 import { chatService } from '../services/chatService'
+import { connectionService } from '../services/connectionService'
 import { fileService } from '../services/fileService'
 import { websocketService } from '../services/websocketService'
 import { BACKEND_URL } from '../services/api'
-import type { Conversation, Message, User, FileItem, TypingEvent } from '../types'
+import type { Conversation, Message, User, FileItem, TypingEvent, UserConnection } from '../types'
 
 export default function Chat() {
   const { user } = useAuth()
@@ -73,11 +76,18 @@ export default function Chat() {
   // UI Panels State
   const [showRightPane, setShowRightPane] = useState(false)
   const [showNewChatModal, setShowNewChatModal] = useState(false)
-  const [newChatTab, setNewChatTab] = useState<'USERS' | 'TAG'>('TAG')
+  const [newChatTab, setNewChatTab] = useState<'USERS' | 'GROUP' | 'TAG'>('USERS')
   const [newChatType, setNewChatType] = useState<'DIRECT' | 'GROUP'>('DIRECT')
   const [newGroupTitle, setNewGroupTitle] = useState('')
   const [workspaceUsers, setWorkspaceUsers] = useState<User[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
+
+  // Connection Workflow State
+  const [incomingRequests, setIncomingRequests] = useState<UserConnection[]>([])
+  const [userSearchText, setUserSearchText] = useState('')
+  const [connectingUserId, setConnectingUserId] = useState<number | null>(null)
+  const [processingRequestId, setProcessingRequestId] = useState<number | null>(null)
+  const [loadingUsers, setLoadingUsers] = useState(false)
 
   // User Tag Modal State
   const [tagInput, setTagInput] = useState('')
@@ -88,6 +98,7 @@ export default function Chat() {
   // Clipboard feedback state
   const [copiedTag, setCopiedTag] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -213,16 +224,113 @@ export default function Chat() {
     }
   }
 
+  async function loadWorkspaceUsers(query = '') {
+    try {
+      setLoadingUsers(true)
+      const [users, requests] = await Promise.all([
+        connectionService.searchUsers(query),
+        connectionService.getIncomingRequests(),
+      ])
+      setWorkspaceUsers(users)
+      setIncomingRequests(requests)
+    } catch (err) {
+      console.error('Failed to load workspace users with connections', err)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
   async function openNewChatModal() {
     setShowNewChatModal(true)
-    setNewChatTab('TAG')
+    setNewChatTab('USERS')
+    setUserSearchText('')
     setTagInput('')
     setLookedUpUser(null)
     setTagError(null)
-    const users = await chatService.searchUsers()
-    setWorkspaceUsers(users)
     setSelectedUserIds([])
     setNewGroupTitle('')
+    await loadWorkspaceUsers('')
+  }
+
+  function handleUserSearchChange(text: string) {
+    setUserSearchText(text)
+    loadWorkspaceUsers(text)
+  }
+
+  async function handleSendConnectionRequest(targetUser: User) {
+    try {
+      setConnectingUserId(targetUser.id)
+      await connectionService.sendRequest(targetUser.id)
+      showToast(`Connection request sent to ${targetUser.name}!`, 'success')
+      setWorkspaceUsers((prev) =>
+        prev.map((u) => (u.id === targetUser.id ? { ...u, connectionStatus: 'PENDING_SENT' } : u))
+      )
+      if (lookedUpUser && lookedUpUser.id === targetUser.id) {
+        setLookedUpUser({ ...lookedUpUser, connectionStatus: 'PENDING_SENT' })
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Failed to send connection request.'
+      showToast(msg, 'warning')
+    } finally {
+      setConnectingUserId(null)
+    }
+  }
+
+  async function handleAcceptRequest(connectionId: number, requesterName: string, requesterId?: number) {
+    try {
+      setProcessingRequestId(connectionId)
+      await connectionService.acceptRequest(connectionId)
+      showToast(`You are now connected with ${requesterName}!`, 'success')
+      setIncomingRequests((prev) => prev.filter((r) => r.id !== connectionId))
+      setWorkspaceUsers((prev) =>
+        prev.map((u) =>
+          u.connectionId === connectionId || (requesterId && u.id === requesterId)
+            ? { ...u, connectionStatus: 'CONNECTED' }
+            : u
+        )
+      )
+      if (lookedUpUser && (lookedUpUser.connectionId === connectionId || (requesterId && lookedUpUser.id === requesterId))) {
+        setLookedUpUser({ ...lookedUpUser, connectionStatus: 'CONNECTED' })
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Failed to accept connection request.'
+      showToast(msg, 'warning')
+    } finally {
+      setProcessingRequestId(null)
+    }
+  }
+
+  async function handleDeclineRequest(connectionId: number) {
+    try {
+      setProcessingRequestId(connectionId)
+      await connectionService.declineRequest(connectionId)
+      showToast('Connection request declined.', 'info')
+      setIncomingRequests((prev) => prev.filter((r) => r.id !== connectionId))
+      setWorkspaceUsers((prev) =>
+        prev.map((u) =>
+          u.connectionId === connectionId
+            ? { ...u, connectionStatus: 'NONE', connectionId: undefined }
+            : u
+        )
+      )
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Failed to decline request.'
+      showToast(msg, 'warning')
+    } finally {
+      setProcessingRequestId(null)
+    }
+  }
+
+  async function handleStartChatWithUser(targetUser: User) {
+    try {
+      const conv = await chatService.createDirectConversation(targetUser.id)
+      setConversations((prev) => [conv, ...prev.filter((c) => c.id !== conv.id)])
+      setSelectedConversation(conv)
+      setShowNewChatModal(false)
+      showToast(`Chat started with ${targetUser.name}!`, 'success')
+    } catch (err: any) {
+      showToast('Could not start conversation.', 'warning')
+    }
   }
 
   function handleCopyTag() {
@@ -263,11 +371,13 @@ export default function Chat() {
       return
     }
 
-
     try {
       setTagSearching(true)
       const foundUser = await chatService.lookupUserByTag(tag)
-      setLookedUpUser(foundUser)
+      // Check connection status for looked up user
+      const users = await connectionService.searchUsers(foundUser.userTag || foundUser.email)
+      const matched = users.find((u) => u.id === foundUser.id)
+      setLookedUpUser(matched || foundUser)
     } catch (err: any) {
       setTagError('No active user found with ID: ' + tag)
     } finally {
@@ -275,32 +385,17 @@ export default function Chat() {
     }
   }
 
-  async function handleStartChatWithLookedUpUser() {
-    if (!lookedUpUser?.id) return
+  async function handleCreateGroupConversation() {
+    if (selectedUserIds.length === 0 || !newGroupTitle.trim()) return
     try {
-      const conv = await chatService.createDirectConversation(lookedUpUser.id)
-      setConversations((prev) => [conv, ...prev.filter((c) => c.id !== conv.id)])
-      setSelectedConversation(conv)
-      setShowNewChatModal(false)
-      showToast(`Chat started with ${lookedUpUser.name}!`, 'success')
-    } catch (err: any) {
-      showToast('Could not start conversation.', 'warning')
-    }
-  }
-
-  async function handleCreateConversation() {
-    if (newChatType === 'DIRECT') {
-      if (selectedUserIds.length === 0) return
-      const direct = await chatService.createDirectConversation(selectedUserIds[0])
-      setConversations((prev) => [direct, ...prev.filter((c) => c.id !== direct.id)])
-      setSelectedConversation(direct)
-    } else {
-      if (selectedUserIds.length === 0 || !newGroupTitle.trim()) return
       const group = await chatService.createGroupConversation(newGroupTitle.trim(), selectedUserIds)
       setConversations((prev) => [group, ...prev])
       setSelectedConversation(group)
+      setShowNewChatModal(false)
+      showToast(`Group "${newGroupTitle}" created!`, 'success')
+    } catch (err) {
+      showToast('Failed to create group.', 'warning')
     }
-    setShowNewChatModal(false)
   }
 
   async function handleSendMessage(e?: React.FormEvent) {
@@ -1027,51 +1122,353 @@ export default function Chat() {
       {/* ===== NEW CHAT MODAL ===== */}
       <AnimatePresence>
         {showNewChatModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-panel w-full max-w-md p-6 border border-violet-500/30 shadow-glow"
+              exit={{ scale: 0.92, opacity: 0 }}
+              className="glass-panel w-full max-w-lg p-6 border border-violet-500/30 shadow-2xl rounded-3xl"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-display font-semibold text-silver">Start Conversation</h3>
-                <button onClick={() => setShowNewChatModal(false)} className="text-muted hover:text-lavender">
+                <div>
+                  <h3 className="text-lg font-display font-semibold text-silver flex items-center gap-2">
+                    <span>Start Conversation</span>
+                    {incomingRequests.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-600 to-cyan-500 text-[10px] font-bold text-void-950">
+                        {incomingRequests.length} pending
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-muted">Connect with teammates on Mystic or search member directory</p>
+                </div>
+                <button
+                  onClick={() => setShowNewChatModal(false)}
+                  className="p-1.5 rounded-xl bg-white/[0.04] text-muted hover:text-lavender transition-all"
+                >
                   <X size={18} />
                 </button>
               </div>
 
-              {/* Main Tab Switcher: Direct ID vs Browse Team */}
-              <div className="flex rounded-xl bg-void-900 p-1 mb-4 border border-white/[0.06]">
-                <button
-                  type="button"
-                  onClick={() => setNewChatTab('TAG')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
-                    newChatTab === 'TAG'
-                      ? 'bg-gradient-to-r from-violet-600/40 to-cyan-600/40 text-silver shadow-glow border border-violet-400/30'
-                      : 'text-muted hover:text-silver'
-                  }`}
-                >
-                  <Hash size={13} />
-                  <span>Enter User ID / Link</span>
-                </button>
+              {/* Main Tab Switcher: Browse & Connect / Group Chat / User ID */}
+              <div className="flex rounded-2xl bg-void-900 p-1 mb-4 border border-white/[0.06]">
                 <button
                   type="button"
                   onClick={() => setNewChatTab('USERS')}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                     newChatTab === 'USERS'
-                      ? 'bg-gradient-to-r from-violet-600/40 to-cyan-600/40 text-silver shadow-glow border border-violet-400/30'
+                      ? 'bg-gradient-to-r from-violet-600/50 to-cyan-600/50 text-silver shadow-glow border border-violet-400/30'
                       : 'text-muted hover:text-silver'
                   }`}
                 >
                   <Users size={13} />
                   <span>Browse Members</span>
+                  {incomingRequests.length > 0 && (
+                    <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewChatTab('GROUP')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                    newChatTab === 'GROUP'
+                      ? 'bg-gradient-to-r from-violet-600/50 to-cyan-600/50 text-silver shadow-glow border border-violet-400/30'
+                      : 'text-muted hover:text-silver'
+                  }`}
+                >
+                  <MessageSquare size={13} />
+                  <span>Group Chat</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewChatTab('TAG')}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                    newChatTab === 'TAG'
+                      ? 'bg-gradient-to-r from-violet-600/50 to-cyan-600/50 text-silver shadow-glow border border-violet-400/30'
+                      : 'text-muted hover:text-silver'
+                  }`}
+                >
+                  <Hash size={13} />
+                  <span>Chat ID / Link</span>
                 </button>
               </div>
 
-              {newChatTab === 'TAG' ? (
-                /* Tab 1: Enter Tag / ID */
-                <div className="space-y-3 mb-6">
+              {/* TAB 1: BROWSE MEMBERS & CONNECT */}
+              {newChatTab === 'USERS' && (
+                <div className="space-y-3">
+                  {/* Real-time Search Bar */}
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                    <input
+                      type="text"
+                      placeholder="Search members by name, email, or Chat ID..."
+                      value={userSearchText}
+                      onChange={(e) => handleUserSearchChange(e.target.value)}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl pl-9 pr-8 py-2 text-xs text-silver placeholder:text-muted focus:outline-none focus:border-cyan-400/50 transition-all"
+                    />
+                    {userSearchText && (
+                      <button
+                        onClick={() => handleUserSearchChange('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-silver"
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Incoming Connection Requests Banner */}
+                  {incomingRequests.length > 0 && (
+                    <div className="p-3 rounded-2xl bg-gradient-to-br from-violet-900/30 via-purple-900/20 to-cyan-900/20 border border-violet-500/30 shadow-glow space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="label-tracked text-[10px] text-cyan-300 flex items-center gap-1">
+                          <Sparkles size={11} className="text-cyan-400 animate-pulse" />
+                          Incoming Connection Requests ({incomingRequests.length})
+                        </span>
+                      </div>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                        {incomingRequests.map((req) => (
+                          <div
+                            key={req.id}
+                            className="flex items-center justify-between p-2 rounded-xl bg-void-950/60 border border-white/[0.06]"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-[10px] font-bold text-void-950 flex-shrink-0">
+                                {req.requester.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-silver truncate">
+                                  {req.requester.name}
+                                  {req.requester.userTag && (
+                                    <span className="ml-1 text-[9px] font-mono px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                                      {req.requester.userTag}
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-[10px] text-muted truncate">wants to connect with you on Mystic</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                              <button
+                                type="button"
+                                disabled={processingRequestId === req.id}
+                                onClick={() => handleAcceptRequest(req.id, req.requester.name, req.requester.id)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-void-950 font-semibold text-[11px] flex items-center gap-1 shadow-glow transition-all disabled:opacity-50"
+                              >
+                                <Check size={12} />
+                                <span>Allow</span>
+                              </button>
+                              <button
+                                type="button"
+                                disabled={processingRequestId === req.id}
+                                onClick={() => handleDeclineRequest(req.id)}
+                                className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 text-[11px] flex items-center gap-1 border border-rose-500/30 transition-all disabled:opacity-50"
+                              >
+                                <X size={12} />
+                                <span>Decline</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All Workspace Users List */}
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                    {loadingUsers ? (
+                      <div className="p-6 text-center text-xs text-muted flex items-center justify-center gap-2">
+                        <div className="w-3.5 h-3.5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                        <span>Searching members...</span>
+                      </div>
+                    ) : workspaceUsers.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-muted">
+                        {userSearchText ? 'No members found matching your search.' : 'No other members in workspace.'}
+                      </div>
+                    ) : (
+                      workspaceUsers.map((u) => {
+                        const isOnline = isUserOnline(u.id)
+                        const isConnected = u.connectionStatus === 'CONNECTED'
+                        const isPendingSent = u.connectionStatus === 'PENDING_SENT'
+                        const isPendingReceived = u.connectionStatus === 'PENDING_RECEIVED'
+
+                        return (
+                          <div
+                            key={u.id}
+                            className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.04] transition-all"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="relative flex-shrink-0">
+                                <div className="h-8 w-8 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
+                                  {u.name.slice(0, 2).toUpperCase()}
+                                </div>
+                                <span
+                                  className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-void-950 ${
+                                    isOnline ? 'bg-emerald-400' : 'bg-muted/40'
+                                  }`}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-silver flex items-center gap-1.5 truncate">
+                                  <span className="truncate">{u.name}</span>
+                                  {u.userTag && (
+                                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-cyan-500/10 text-cyan-300/80 border border-cyan-400/20 flex-shrink-0">
+                                      {u.userTag}
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-[10px] text-muted truncate">{u.email}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex-shrink-0 ml-2">
+                              {isConnected ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartChatWithUser(u)}
+                                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-cyan-400 hover:from-violet-400 hover:to-cyan-300 text-void-950 font-semibold text-xs flex items-center gap-1.5 shadow-glow transition-all"
+                                >
+                                  <MessageSquare size={12} />
+                                  <span>Chat</span>
+                                </button>
+                              ) : isPendingSent ? (
+                                <div className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-400/30 text-amber-300 text-[11px] flex items-center gap-1.5">
+                                  <Clock size={11} className="animate-spin" />
+                                  <span>Pending</span>
+                                </div>
+                              ) : isPendingReceived ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    disabled={processingRequestId === u.connectionId}
+                                    onClick={() => handleAcceptRequest(u.connectionId!, u.name, u.id)}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-void-950 font-semibold text-[11px] flex items-center gap-1 shadow-glow transition-all"
+                                  >
+                                    <Check size={11} />
+                                    <span>Allow</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={processingRequestId === u.connectionId}
+                                    onClick={() => handleDeclineRequest(u.connectionId!)}
+                                    className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 text-[11px] flex items-center gap-1 border border-rose-500/30 transition-all"
+                                  >
+                                    <X size={11} />
+                                    <span>Decline</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled={connectingUserId === u.id}
+                                  onClick={() => handleSendConnectionRequest(u)}
+                                  className="px-3 py-1.5 rounded-lg bg-violet-600/30 hover:bg-violet-600/50 border border-violet-400/30 text-silver hover:text-white font-medium text-xs flex items-center gap-1.5 shadow-glow transition-all disabled:opacity-50"
+                                >
+                                  {connectingUserId === u.id ? (
+                                    <div className="w-3 h-3 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                                  ) : (
+                                    <UserPlus size={12} className="text-violet-300" />
+                                  )}
+                                  <span>Connect</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewChatModal(false)}
+                      className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: GROUP CHAT */}
+              {newChatTab === 'GROUP' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="label-tracked block mb-1 text-xs">Group Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Project Mystic Core Team"
+                      value={newGroupTitle}
+                      onChange={(e) => setNewGroupTitle(e.target.value)}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="label-tracked block mb-1 text-xs">Select Members ({selectedUserIds.length})</label>
+                    <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                      {workspaceUsers.map((u) => {
+                        const isSelected = selectedUserIds.includes(u.id)
+
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => {
+                              setSelectedUserIds((prev) =>
+                                prev.includes(u.id) ? prev.filter((id) => id !== u.id) : [...prev, u.id]
+                              )
+                            }}
+                            className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                              isSelected
+                                ? 'bg-violet-500/20 border border-violet-400/40'
+                                : 'bg-white/[0.02] border border-transparent hover:bg-white/[0.05]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-7 w-7 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
+                                {u.name.slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-silver flex items-center gap-1.5">
+                                  {u.name}
+                                  {u.userTag && (
+                                    <span className="text-[9px] font-mono px-1 rounded bg-white/[0.06] text-muted">
+                                      {u.userTag}
+                                    </span>
+                                  )}
+                                </p>
+                                <p className="text-[10px] text-muted">{u.email}</p>
+                              </div>
+                            </div>
+                            {isSelected && <Check size={15} className="text-cyan-400" />}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewChatModal(false)}
+                      className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateGroupConversation}
+                      disabled={selectedUserIds.length === 0 || !newGroupTitle.trim()}
+                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs shadow-glow disabled:opacity-40"
+                    >
+                      Create Group
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: ENTER USER ID / LINK */}
+              {newChatTab === 'TAG' && (
+                <div className="space-y-3 mb-2">
                   <div>
                     <label className="label-tracked block mb-1.5 text-xs">User ID or Invite Link</label>
                     <div className="relative flex items-center">
@@ -1118,14 +1515,55 @@ export default function Chat() {
                           <p className="text-[11px] text-muted">{lookedUpUser.email}</p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleStartChatWithLookedUpUser}
-                        className="px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-void-950 font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
-                      >
-                        <span>Chat</span>
-                        <ArrowRight size={12} />
-                      </button>
+
+                      {lookedUpUser.connectionStatus === 'CONNECTED' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleStartChatWithUser(lookedUpUser)}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-void-950 font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
+                        >
+                          <MessageSquare size={12} />
+                          <span>Chat</span>
+                        </button>
+                      ) : lookedUpUser.connectionStatus === 'PENDING_SENT' ? (
+                        <div className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-400/30 text-amber-300 text-xs flex items-center gap-1.5">
+                          <Clock size={12} className="animate-spin" />
+                          <span>Pending</span>
+                        </div>
+                      ) : lookedUpUser.connectionStatus === 'PENDING_RECEIVED' ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={processingRequestId === lookedUpUser.connectionId}
+                            onClick={() =>
+                              handleAcceptRequest(lookedUpUser.connectionId!, lookedUpUser.name, lookedUpUser.id)
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-void-950 font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
+                          >
+                            <Check size={12} />
+                            <span>Allow</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={processingRequestId === lookedUpUser.connectionId}
+                            onClick={() => handleDeclineRequest(lookedUpUser.connectionId!)}
+                            className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 text-xs flex items-center gap-1 border border-rose-500/30 transition-all"
+                          >
+                            <X size={12} />
+                            <span>Decline</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={connectingUserId === lookedUpUser.id}
+                          onClick={() => handleSendConnectionRequest(lookedUpUser)}
+                          className="px-3 py-1.5 rounded-lg bg-violet-600/40 hover:bg-violet-600/60 border border-violet-400/30 text-silver hover:text-white font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
+                        >
+                          <UserPlus size={12} />
+                          <span>Connect</span>
+                        </button>
+                      )}
                     </motion.div>
                   )}
 
@@ -1143,114 +1581,6 @@ export default function Chat() {
                       className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
                     >
                       Close
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Tab 2: Browse Workspace Teammates */
-                <div>
-                  {/* Type Toggle: 1:1 or Group */}
-                  <div className="flex rounded-xl bg-void-900 p-1 mb-4 border border-white/[0.06]">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewChatType('DIRECT')
-                        setSelectedUserIds([])
-                      }}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        newChatType === 'DIRECT' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
-                      }`}
-                    >
-                      Direct Message
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewChatType('GROUP')
-                        setSelectedUserIds([])
-                      }}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        newChatType === 'GROUP' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
-                      }`}
-                    >
-                      Group Chat
-                    </button>
-                  </div>
-
-                  {newChatType === 'GROUP' && (
-                    <div className="mb-4">
-                      <label className="label-tracked block mb-1">Group Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Project Nova Leads"
-                        value={newGroupTitle}
-                        onChange={(e) => setNewGroupTitle(e.target.value)}
-                        className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2 text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50"
-                      />
-                    </div>
-                  )}
-
-                  {/* User Selection List */}
-                  <label className="label-tracked block mb-2">Select Teammates</label>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5 mb-6">
-                    {workspaceUsers.map((u) => {
-                      const isSelected = selectedUserIds.includes(u.id)
-
-                      return (
-                        <div
-                          key={u.id}
-                          onClick={() => {
-                            if (newChatType === 'DIRECT') {
-                              setSelectedUserIds([u.id])
-                            } else {
-                              setSelectedUserIds((prev) =>
-                                prev.includes(u.id) ? prev.filter((id) => id !== u.id) : [...prev, u.id]
-                              )
-                            }
-                          }}
-                          className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
-                            isSelected
-                              ? 'bg-violet-500/20 border border-violet-400/40'
-                              : 'bg-white/[0.02] border border-transparent hover:bg-white/[0.05]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
-                              {u.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-silver flex items-center gap-1.5">
-                                {u.name}
-                                {u.userTag && (
-                                  <span className="text-[9px] font-mono px-1 rounded bg-white/[0.06] text-muted">
-                                    {u.userTag}
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-[10px] text-muted">{u.email}</p>
-                            </div>
-                          </div>
-                          {isSelected && <Check size={16} className="text-cyan-400" />}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  <div className="flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowNewChatModal(false)}
-                      className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCreateConversation}
-                      disabled={selectedUserIds.length === 0 || (newChatType === 'GROUP' && !newGroupTitle.trim())}
-                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs shadow-glow disabled:opacity-40"
-                    >
-                      Start Chat
                     </button>
                   </div>
                 </div>

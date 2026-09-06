@@ -4,6 +4,17 @@ export interface User {
   email: string
   userTag?: string
   status?: 'ONLINE' | 'AWAY' | 'OFFLINE'
+  connectionStatus?: 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'CONNECTED'
+  connectionId?: number
+}
+
+export interface UserConnection {
+  id: number
+  requester: User
+  recipient: User
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED'
+  createdAt: string
+  updatedAt: string
 }
 
 export type Priority = 'LOW' | 'MEDIUM' | 'HIGH'
@@ -247,7 +258,7 @@ export interface GlobalSearchResult {
 
 export interface AppNotification {
   id: string
-  type: 'MESSAGE' | 'CALENDAR_EVENING' | 'CALENDAR_MORNING' | 'CALL' | 'TASK'
+  type: 'MESSAGE' | 'CALENDAR_EVENING' | 'CALENDAR_MORNING' | 'CALL' | 'TASK' | 'CONNECTION_REQUEST' | 'CONNECTION_ACCEPTED'
   title: string
   body: string
   targetUrl?: string
@@ -256,5 +267,8 @@ export interface AppNotification {
   read?: boolean
   eventId?: number
   conversationId?: number
+  connectionId?: number
+  requesterId?: number
 }
+
 

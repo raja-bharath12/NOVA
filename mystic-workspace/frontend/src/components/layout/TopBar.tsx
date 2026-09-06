@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, MessageSquare, Sparkles, Command, Sun, Moon, Phone, CheckSquare, Trash2, Calendar } from 'lucide-react'
+import { Search, Bell, MessageSquare, Sparkles, Command, Sun, Moon, Phone, CheckSquare, Trash2, Calendar, UserPlus, UserCheck, Check, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
@@ -10,7 +10,7 @@ import AiAssistantDrawer from '../ai/AiAssistantDrawer'
 
 export default function TopBar() {
   const { user } = useAuth()
-  const { notifications, unreadNotifsCount, clearNotifications, dismissNotification } = useCall()
+  const { notifications, unreadNotifsCount, clearNotifications, dismissNotification, acceptConnectionRequest, declineConnectionRequest } = useCall()
   const navigate = useNavigate()
 
   const [showDropdown, setShowDropdown] = useState(false)
@@ -46,7 +46,7 @@ export default function TopBar() {
     setShowDropdown(false)
     if (notif.targetUrl) {
       navigate(notif.targetUrl)
-    } else if (notif.type === 'MESSAGE') {
+    } else if (notif.type === 'MESSAGE' || notif.type === 'CONNECTION_REQUEST' || notif.type === 'CONNECTION_ACCEPTED') {
       navigate('/chat')
     } else if (notif.type === 'CALENDAR_EVENING' || notif.type === 'CALENDAR_MORNING') {
       navigate('/calendar')
@@ -57,6 +57,18 @@ export default function TopBar() {
 
   function getNotificationIcon(type: AppNotification['type']) {
     switch (type) {
+      case 'CONNECTION_REQUEST':
+        return (
+          <div className="h-7 w-7 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-glow">
+            <UserPlus size={14} />
+          </div>
+        )
+      case 'CONNECTION_ACCEPTED':
+        return (
+          <div className="h-7 w-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <UserCheck size={14} />
+          </div>
+        )
       case 'CALENDAR_EVENING':
         return (
           <div className="h-7 w-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -211,36 +223,79 @@ export default function TopBar() {
                     notifications.slice(0, 15).map((n) => (
                       <div
                         key={n.id}
-                        onClick={() => handleOpenNotification(n)}
-                        className="group flex items-start gap-3 p-2.5 rounded-xl bg-white/[0.03] hover:bg-violet-500/10 cursor-pointer transition-all border border-transparent hover:border-violet-400/20 relative"
+                        className="group flex flex-col gap-2 p-2.5 rounded-xl bg-white/[0.03] hover:bg-violet-500/10 transition-all border border-transparent hover:border-violet-400/20 relative"
                       >
-                        {getNotificationIcon(n.type)}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-silver truncate">
-                            {n.title || n.senderName || 'Notification'}
-                          </p>
-                          <p className="text-[11px] text-muted/90 line-clamp-2 mt-0.5 leading-snug">
-                            {n.body}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-[9px] font-mono text-muted/60">
-                              {n.createdAt ? new Date(n.createdAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              }) : 'Just now'}
-                            </span>
-                            {n.type === 'CALENDAR_EVENING' && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-300 font-medium">
-                                Evening Alert
+                        <div
+                          onClick={() => handleOpenNotification(n)}
+                          className="flex items-start gap-3 cursor-pointer"
+                        >
+                          {getNotificationIcon(n.type)}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-silver truncate">
+                              {n.title || n.senderName || 'Notification'}
+                            </p>
+                            <p className="text-[11px] text-muted/90 line-clamp-2 mt-0.5 leading-snug">
+                              {n.body}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-[9px] font-mono text-muted/60">
+                                {n.createdAt ? new Date(n.createdAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                }) : 'Just now'}
                               </span>
-                            )}
-                            {n.type === 'CALENDAR_MORNING' && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 font-medium">
-                                Morning Plan
-                              </span>
-                            )}
+                              {n.type === 'CONNECTION_REQUEST' && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-medium">
+                                  Connection Request
+                                </span>
+                              )}
+                              {n.type === 'CALENDAR_EVENING' && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-300 font-medium">
+                                  Evening Alert
+                                </span>
+                              )}
+                              {n.type === 'CALENDAR_MORNING' && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 font-medium">
+                                  Morning Plan
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
+
+                        {/* Interactive Allow & Decline buttons for Connection Requests */}
+                        {n.type === 'CONNECTION_REQUEST' && n.connectionId && (
+                          <div className="flex items-center gap-2 pt-1 pl-10">
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (n.connectionId) {
+                                  await acceptConnectionRequest(n.connectionId)
+                                  setShowDropdown(false)
+                                  navigate('/chat')
+                                }
+                              }}
+                              className="px-3 py-1 rounded-lg bg-gradient-to-r from-violet-500 to-cyan-400 text-void-950 font-bold text-[11px] flex items-center gap-1 shadow-glow hover:brightness-110 transition-all"
+                            >
+                              <Check size={12} />
+                              <span>Allow</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                if (n.connectionId) {
+                                  await declineConnectionRequest(n.connectionId)
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-rose-500/20 text-muted hover:text-rose-300 border border-white/[0.06] text-[11px] font-medium transition-colors flex items-center gap-1"
+                            >
+                              <X size={12} />
+                              <span>Decline</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

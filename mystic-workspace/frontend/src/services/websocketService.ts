@@ -175,18 +175,35 @@ class WebSocketService {
 
   subscribeToUserNotifications(
     onNotification: (msg: Message) => void,
-    onCallSignal?: (signal: CallSignal) => void
+    onCallSignal?: (signal: CallSignal) => void,
+    onConnectionEvent?: (event: any) => void
   ): () => void {
     if (!this.client || !this.connected) return () => {}
 
     const subNotif = this.client.subscribe('/user/queue/notifications', (imsg: IMessage) => {
       try {
-        const data: Message = JSON.parse(imsg.body)
-        onNotification(data)
+        const data = JSON.parse(imsg.body)
+        if (data.type === 'CONNECTION_REQUEST' || data.type === 'CONNECTION_ACCEPTED' || data.type === 'CONNECTION_DECLINED') {
+          onConnectionEvent?.(data)
+        } else {
+          onNotification(data as Message)
+        }
       } catch (err) {
         console.error('Failed to parse user notification', err)
       }
     })
+
+    let subConn: StompSubscription | null = null
+    if (onConnectionEvent) {
+      subConn = this.client.subscribe('/user/queue/connections', (imsg: IMessage) => {
+        try {
+          const data = JSON.parse(imsg.body)
+          onConnectionEvent(data)
+        } catch (err) {
+          console.error('Failed to parse connection event', err)
+        }
+      })
+    }
 
     let subCall: StompSubscription | null = null
     if (onCallSignal) {
@@ -202,6 +219,7 @@ class WebSocketService {
 
     return () => {
       subNotif.unsubscribe()
+      subConn?.unsubscribe()
       subCall?.unsubscribe()
     }
   }

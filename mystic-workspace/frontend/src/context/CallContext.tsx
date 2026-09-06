@@ -4,6 +4,7 @@ import { websocketService } from '../services/websocketService'
 import { webrtcService } from '../services/webrtcService'
 import { notificationService } from '../services/notificationService'
 import { eventService } from '../services/eventService'
+import { connectionService } from '../services/connectionService'
 import type { CallSignal, Message, PresenceEvent, AppNotification } from '../types'
 
 interface CallContextValue {
@@ -31,6 +32,8 @@ interface CallContextValue {
   toggleCam: () => void
   clearNotifications: () => void
   dismissNotification: (id: string) => void
+  acceptConnectionRequest: (connectionId: number) => Promise<void>
+  declineConnectionRequest: (connectionId: number) => Promise<void>
 }
 
 const CallContext = createContext<CallContextValue | undefined>(undefined)
@@ -82,6 +85,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
       },
       (signal: CallSignal) => {
         handleIncomingCallSignal(signal)
+      },
+      (event: any) => {
+        handleConnectionEvent(event)
       }
     )
 
@@ -108,6 +114,70 @@ export function CallProvider({ children }: { children: ReactNode }) {
       websocketService.disconnect()
     }
   }, [user])
+
+  function handleConnectionEvent(event: any) {
+    if (!event || !event.connection) return
+    const conn = event.connection
+
+    if (event.type === 'CONNECTION_REQUEST') {
+      const notif: AppNotification = {
+        id: `conn-req-${conn.id}-${Date.now()}`,
+        type: 'CONNECTION_REQUEST',
+        title: `🤝 Connection Request`,
+        body: `${conn.requester?.name || 'Someone'} wants to connect with you on Mystic`,
+        connectionId: conn.id,
+        requesterId: conn.requester?.id,
+        targetUrl: '/chat',
+        createdAt: new Date().toISOString(),
+      }
+      setNotifications((prev) => [notif, ...prev])
+      setUnreadNotifsCount((prev) => prev + 1)
+
+      notificationService.showNativeNotification(`🤝 Connection Request`, {
+        body: `${conn.requester?.name || 'A user'} wants to connect with you on Mystic.`,
+        url: '/chat',
+        tag: `conn-req-${conn.id}`,
+      })
+    } else if (event.type === 'CONNECTION_ACCEPTED') {
+      const partnerName = conn.requester?.id === user?.id ? conn.recipient?.name : conn.requester?.name
+      const notif: AppNotification = {
+        id: `conn-acc-${conn.id}-${Date.now()}`,
+        type: 'CONNECTION_ACCEPTED',
+        title: `🎉 Connected on Mystic!`,
+        body: `${partnerName || 'Your connection'} accepted your request. You can now chat!`,
+        targetUrl: '/chat',
+        createdAt: new Date().toISOString(),
+      }
+      setNotifications((prev) => [notif, ...prev])
+      setUnreadNotifsCount((prev) => prev + 1)
+
+      notificationService.showNativeNotification(`🎉 Connected!`, {
+        body: `You and ${partnerName} are now connected on Mystic.`,
+        url: '/chat',
+        tag: `conn-acc-${conn.id}`,
+      })
+    }
+  }
+
+  async function acceptConnectionRequest(connectionId: number) {
+    try {
+      await connectionService.accept(connectionId)
+      setNotifications((prev) => prev.filter((n) => n.connectionId !== connectionId))
+    } catch (err) {
+      console.error('Failed to accept connection request:', err)
+      throw err
+    }
+  }
+
+  async function declineConnectionRequest(connectionId: number) {
+    try {
+      await connectionService.decline(connectionId)
+      setNotifications((prev) => prev.filter((n) => n.connectionId !== connectionId))
+    } catch (err) {
+      console.error('Failed to decline connection request:', err)
+      throw err
+    }
+  }
 
   async function checkCalendarReminders() {
     try {
@@ -292,6 +362,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         endCall,
         toggleMic,
         toggleCam,
+        acceptConnectionRequest,
+        declineConnectionRequest,
         clearNotifications,
         dismissNotification,
       }}

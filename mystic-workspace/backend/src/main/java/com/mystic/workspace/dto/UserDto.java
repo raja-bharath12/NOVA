@@ -15,4 +15,7 @@ public class UserDto {
     private String email;
     private String userTag;
     private String status; // ONLINE, AWAY, OFFLINE
+    private String connectionStatus; // NONE, PENDING_SENT, PENDING_RECEIVED, CONNECTED
+    private Long connectionId;
 }
+
