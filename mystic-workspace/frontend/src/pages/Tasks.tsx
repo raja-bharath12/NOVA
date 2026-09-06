@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Plus } from 'lucide-react'
+import { Plus, CalendarCheck, CheckSquare, ListTodo } from 'lucide-react'
 import GlassPanel from '../components/dashboard/GlassPanel'
 import TaskItem from '../components/tasks/TaskItem'
+import DailyHabitTracker from '../components/tasks/DailyHabitTracker'
 import { taskService } from '../services/taskService'
 import { useToast } from '../context/ToastContext'
 import type { Task, Priority } from '../types'
 
 type ViewFilter = 'today' | 'upcoming' | 'completed' | 'all'
+type PageMode = 'list' | 'daily'
 
 export default function Tasks() {
   const { showToast } = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [pageMode, setPageMode] = useState<PageMode>('list')
   const [view, setView] = useState<ViewFilter>('all')
   const [showForm, setShowForm] = useState(false)
   const [title, setTitle] = useState('')
@@ -81,40 +84,105 @@ export default function Tasks() {
 
   const completedCount = tasks.filter((t) => t.completed).length
 
+  const handleOpenDailyTask = () => {
+    setPageMode('daily')
+  }
+
   return (
     <div className="w-full space-y-6">
-      <div className="flex items-center justify-between mb-6">
+      {/* Header Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gradient">Tasks</h1>
+          <h1 className="text-2xl font-semibold text-gradient">
+            {pageMode === 'daily' ? 'Daily Habit & Task Matrix' : 'Tasks'}
+          </h1>
           <p className="label-tracked mt-1">
-            <span className="luminous-number">{completedCount}</span> / {tasks.length} completed
+            {pageMode === 'daily' ? (
+              <span>Monthly habit consistency and daily task tracking</span>
+            ) : (
+              <>
+                <span className="luminous-number">{completedCount}</span> / {tasks.length} completed
+              </>
+            )}
           </p>
         </div>
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-2 text-sm font-medium text-void-950 shadow-glow"
-        >
-          <Plus size={16} /> New Task
-        </motion.button>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Mode Switcher */}
+          <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/[0.06]">
+            <button
+              onClick={() => setPageMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                pageMode === 'list'
+                  ? 'bg-violet-600/30 text-silver border border-violet-500/30 shadow-glow'
+                  : 'text-muted hover:text-silver'
+              }`}
+            >
+              <ListTodo size={14} />
+              <span>Task List</span>
+            </button>
+            <button
+              onClick={() => setPageMode('daily')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                pageMode === 'daily'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-glow'
+                  : 'text-muted hover:text-silver'
+              }`}
+            >
+              <CheckSquare size={14} />
+              <span>Daily Matrix</span>
+            </button>
+          </div>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleOpenDailyTask}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all shadow-glow ${
+              pageMode === 'daily'
+                ? 'bg-gradient-to-r from-cyan-500/30 to-violet-500/30 border border-cyan-400 text-cyan-200'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border border-cyan-500/30 hover:border-cyan-400 text-cyan-300'
+            }`}
+          >
+            <CalendarCheck size={16} className="text-cyan-400" />
+            <span>Daily Task</span>
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              setPageMode('list')
+              setShowForm((v) => !v)
+            }}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-4 py-2 text-sm font-medium text-void-950 shadow-glow transition-all"
+          >
+            <Plus size={16} />
+            <span>New Task</span>
+          </motion.button>
+        </div>
       </div>
 
-      <AnimatePresence>
-        {showForm && (
-          <motion.form
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            onSubmit={handleCreate}
-            className="glass-panel p-5 mb-6 flex flex-col gap-3 overflow-hidden"
-          >
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="What needs to get done?"
-              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-silver focus:outline-none focus:border-violet-400/50 focus:shadow-glow transition-all"
-            />
+      {pageMode === 'daily' ? (
+        <DailyHabitTracker />
+      ) : (
+        <>
+          <AnimatePresence>
+            {showForm && (
+              <motion.form
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                onSubmit={handleCreate}
+                className="glass-panel p-5 mb-6 flex flex-col gap-3 overflow-hidden"
+              >
+                <input
+                  autoFocus
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="What needs to get done?"
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-silver focus:outline-none focus:border-violet-400/50 focus:shadow-glow transition-all"
+                />
             <div className="flex gap-3">
               <select
                 value={priority}
@@ -172,6 +240,8 @@ export default function Tasks() {
             ))}
           </AnimatePresence>
         </ul>
+      )}
+        </>
       )}
     </div>
   )
