@@ -9,7 +9,7 @@ import { useToast } from '../context/ToastContext'
 import type { Task, Priority } from '../types'
 
 type ViewFilter = 'today' | 'upcoming' | 'completed' | 'all'
-type PageMode = 'list' | 'daily'
+type PageMode = 'list' | 'daily_matrix' | 'daily_task'
 
 export default function Tasks() {
   const { showToast } = useToast()
@@ -87,7 +87,7 @@ export default function Tasks() {
   const [isManageHabitsOpen, setIsManageHabitsOpen] = useState(false)
 
   const handleOpenDailyTask = () => {
-    setPageMode('daily')
+    setPageMode('daily_task')
     setIsManageHabitsOpen(true)
   }
 
@@ -97,21 +97,27 @@ export default function Tasks() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gradient">
-            {pageMode === 'daily' ? 'Daily Habit & Task Matrix' : 'Tasks'}
+            {pageMode === 'list'
+              ? 'Tasks'
+              : pageMode === 'daily_matrix'
+              ? 'Daily Habit Matrix'
+              : 'Daily Task & Habit Manager'}
           </h1>
           <p className="label-tracked mt-1">
-            {pageMode === 'daily' ? (
-              <span>Monthly habit consistency and daily task tracking</span>
-            ) : (
+            {pageMode === 'list' ? (
               <>
                 <span className="luminous-number">{completedCount}</span> / {tasks.length} completed
               </>
+            ) : pageMode === 'daily_matrix' ? (
+              <span>Monthly habit consistency and real-time accountability matrix</span>
+            ) : (
+              <span>Manage recurring routines, rename tasks, and configure custom day recurrence</span>
             )}
           </p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Mode Switcher */}
+          {/* Mode Switcher Tabs */}
           <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/[0.06]">
             <button
               onClick={() => setPageMode('list')}
@@ -125,9 +131,9 @@ export default function Tasks() {
               <span>Task List</span>
             </button>
             <button
-              onClick={() => setPageMode('daily')}
+              onClick={() => setPageMode('daily_matrix')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                pageMode === 'daily'
+                pageMode === 'daily_matrix'
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-glow'
                   : 'text-muted hover:text-silver'
               }`}
@@ -142,7 +148,7 @@ export default function Tasks() {
             whileTap={{ scale: 0.95 }}
             onClick={handleOpenDailyTask}
             className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all shadow-glow ${
-              pageMode === 'daily'
+              pageMode === 'daily_task'
                 ? 'bg-gradient-to-r from-cyan-500/30 to-violet-500/30 border border-cyan-400 text-cyan-200'
                 : 'bg-white/[0.04] hover:bg-white/[0.08] border border-cyan-500/30 hover:border-cyan-400 text-cyan-300'
             }`}
@@ -166,8 +172,14 @@ export default function Tasks() {
         </div>
       </div>
 
-      {pageMode === 'daily' ? (
+      {pageMode === 'daily_matrix' ? (
         <DailyHabitTracker
+          showEditHabitButton={false}
+          isManageOpen={false}
+        />
+      ) : pageMode === 'daily_task' ? (
+        <DailyHabitTracker
+          showEditHabitButton={true}
           isManageOpen={isManageHabitsOpen}
           setIsManageOpen={setIsManageHabitsOpen}
         />
