@@ -52,12 +52,14 @@ export default function Meetings() {
     try {
       setCreating(true)
       const meeting = await meetingService.createInstantMeeting(
-        `${user?.name?.split(' ')[0]}'s Workspace Meeting`,
+        `${user?.name?.split(' ')[0] || 'User'}'s Workspace Meeting`,
         'Instant ad-hoc collaboration room'
       )
       navigate(`/meetings/room/${meeting.roomCode}`)
     } catch (err) {
-      console.error('Failed to create instant meeting', err)
+      console.warn('Backend instant meeting creation failed, generating instant room code:', err)
+      const randomRoom = `nova-${Math.random().toString(36).substring(2, 6)}-${Math.random().toString(36).substring(2, 6)}`
+      navigate(`/meetings/room/${randomRoom}`)
     } finally {
       setCreating(false)
     }
