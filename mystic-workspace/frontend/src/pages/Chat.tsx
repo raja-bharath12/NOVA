@@ -102,6 +102,7 @@ export default function Chat() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const initialDesktopLoadDone = useRef(false)
 
   // Load conversations on mount
   useEffect(() => {
@@ -138,8 +139,10 @@ export default function Chat() {
       if (!silent) setLoadingConversations(true)
       const data = await chatService.getConversations()
       setConversations(data)
-      if (data.length > 0 && !selectedConversation) {
+      const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
+      if (data.length > 0 && !selectedConversation && isDesktop && !initialDesktopLoadDone.current) {
         setSelectedConversation(data[0])
+        initialDesktopLoadDone.current = true
       }
     } catch (err) {
       console.error('Failed to load conversations', err)
