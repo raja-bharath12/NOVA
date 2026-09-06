@@ -532,14 +532,14 @@ export default function Chat() {
   )
 
   return (
-    <div className="flex h-[calc(100vh-125px)] md:h-[calc(100vh-100px)] w-full gap-4 overflow-hidden relative">
+    <div className="flex flex-1 h-full max-h-full w-full gap-2 sm:gap-4 overflow-hidden relative min-h-0">
       {/* ===== LEFT PANE: Conversations List ===== */}
       <div
-        className={`flex-col w-full md:w-80 lg:w-96 glass-panel border border-white/[0.06] overflow-hidden flex-shrink-0 ${
+        className={`flex-col w-full md:w-80 lg:w-96 glass-panel border border-white/[0.06] overflow-hidden flex-shrink-0 h-full min-h-0 ${
           selectedConversation ? 'hidden md:flex' : 'flex'
         }`}
       >
-        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-2">
             <MessageSquare size={18} className="text-violet-400" />
             <h2 className="font-display font-semibold text-silver">Messages</h2>
@@ -556,7 +556,7 @@ export default function Chat() {
         </div>
 
         {/* Search Bar */}
-        <div className="p-3 border-b border-white/[0.04]">
+        <div className="p-3 border-b border-white/[0.04] flex-shrink-0">
           <div className="relative flex items-center">
             <Search size={14} className="absolute left-3 text-muted" />
             <input
@@ -570,7 +570,7 @@ export default function Chat() {
         </div>
 
         {/* User Chat ID & Shareable Link Banner */}
-        <div className="mx-3 my-2 p-2.5 rounded-xl bg-gradient-to-r from-violet-600/10 via-cyan-500/10 to-indigo-600/10 border border-violet-500/20 flex flex-col gap-1.5">
+        <div className="mx-3 my-2 p-2.5 rounded-xl bg-gradient-to-r from-violet-600/10 via-cyan-500/10 to-indigo-600/10 border border-violet-500/20 flex flex-col gap-1.5 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 min-w-0">
               <span className="text-[10px] font-mono font-semibold text-muted uppercase">MY ID:</span>
@@ -605,7 +605,7 @@ export default function Chat() {
         </div>
 
         {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-white/[0.02]">
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/[0.02]">
           {loadingConversations ? (
             <div className="p-6 text-center text-xs text-muted">Loading chats...</div>
           ) : filteredConversations.length === 0 ? (
@@ -675,14 +675,14 @@ export default function Chat() {
 
       {/* ===== CENTER PANE: Active Chat & Message Stream ===== */}
       <div
-        className={`flex-1 flex-col glass-panel border border-white/[0.06] overflow-hidden min-w-0 ${
+        className={`flex-1 flex-col glass-panel border border-white/[0.06] overflow-hidden min-w-0 min-h-0 h-full ${
           !selectedConversation ? 'hidden md:flex' : 'flex'
         }`}
       >
         {selectedConversation ? (
           <>
             {/* Chat Header */}
-            <div className="px-3.5 sm:px-6 py-3 sm:py-3.5 border-b border-white/[0.06] bg-void-950/40 backdrop-blur-sm flex items-center justify-between">
+            <div className="flex-shrink-0 px-3.5 sm:px-6 py-2.5 sm:py-3.5 border-b border-white/[0.06] bg-void-950/80 backdrop-blur-md flex items-center justify-between z-10">
               <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 {/* Mobile Back Button */}
                 <button
@@ -724,7 +724,7 @@ export default function Chat() {
               </div>
 
               {/* Quick Actions (Audio / Video Call & Info) */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2">
                 {selectedConversation.type === 'DIRECT' && (
                   <>
                     <motion.button
@@ -968,9 +968,9 @@ export default function Chat() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Typing Indicator Bar */}
+            {/* Typing Indicator Bar: Fixed */}
             {typingUsers.size > 0 && (
-              <div className="px-6 py-1.5 text-xs text-cyan-400/90 flex items-center gap-2">
+              <div className="flex-shrink-0 px-4 sm:px-6 py-1 text-xs text-cyan-400/90 flex items-center gap-2 bg-void-950/70 border-t border-white/[0.04]">
                 <div className="flex gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-bounce" />
                   <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.2s]" />
@@ -980,9 +980,9 @@ export default function Chat() {
               </div>
             )}
 
-            {/* Reply / Edit Banner */}
+            {/* Reply / Edit Banner: Fixed */}
             {(replyingTo || editingMessage) && (
-              <div className="px-6 py-2 bg-void-900/90 border-t border-white/[0.06] flex items-center justify-between text-xs">
+              <div className="flex-shrink-0 px-4 sm:px-6 py-2 bg-void-900/95 border-t border-white/[0.06] flex items-center justify-between text-xs z-10">
                 <div className="flex items-center gap-2 text-muted">
                   {replyingTo ? <Reply size={14} className="text-cyan-400" /> : <Edit2 size={14} className="text-violet-400" />}
                   <span>
@@ -1008,9 +1008,9 @@ export default function Chat() {
               </div>
             )}
 
-            {/* Selected File Badges */}
+            {/* Selected File Badges: Fixed */}
             {selectedFiles.length > 0 && (
-              <div className="px-6 py-2 bg-void-900/60 border-t border-white/[0.06] flex items-center gap-2 flex-wrap">
+              <div className="flex-shrink-0 px-4 sm:px-6 py-2 bg-void-900/80 border-t border-white/[0.06] flex items-center gap-2 flex-wrap max-h-24 overflow-y-auto z-10">
                 {selectedFiles.map((file, idx) => (
                   <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs text-silver">
                     <Paperclip size={12} className="text-cyan-400" />
@@ -1029,10 +1029,10 @@ export default function Chat() {
               </div>
             )}
 
-            {/* Message Composer Input */}
+            {/* Message Composer Input: Fixed bottom bar */}
             <form
               onSubmit={handleSendMessage}
-              className="p-4 border-t border-white/[0.06] bg-void-950/40 backdrop-blur-sm flex items-center gap-3"
+              className="flex-shrink-0 p-2.5 sm:p-4 border-t border-white/[0.06] bg-void-950/90 backdrop-blur-md flex items-center gap-2 sm:gap-3 z-10"
             >
               <input
                 type="file"
@@ -1045,10 +1045,10 @@ export default function Chat() {
                 type="button"
                 whileTap={{ scale: 0.9 }}
                 onClick={() => fileInputRef.current?.click()}
-                className="h-10 w-10 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all flex-shrink-0"
+                className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all flex-shrink-0"
                 title="Attach files"
               >
-                <Paperclip size={18} />
+                <Paperclip size={17} />
               </motion.button>
 
               <input
@@ -1056,7 +1056,7 @@ export default function Chat() {
                 placeholder="Type a message..."
                 value={inputText}
                 onChange={handleInputChange}
-                className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5 text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50 focus:shadow-glow transition-all"
+                className="flex-1 bg-white/[0.03] border border-white/[0.06] rounded-xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50 focus:shadow-glow transition-all"
               />
 
               <motion.button
@@ -1064,9 +1064,9 @@ export default function Chat() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 disabled={!inputText.trim() && selectedFiles.length === 0}
-                className="h-10 px-4 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold flex items-center justify-center gap-2 shadow-glow hover:opacity-90 disabled:opacity-40 transition-all flex-shrink-0"
+                className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold flex items-center justify-center shadow-glow hover:opacity-90 disabled:opacity-40 transition-all flex-shrink-0"
               >
-                <Send size={16} />
+                <Send size={15} />
               </motion.button>
             </form>
           </>
