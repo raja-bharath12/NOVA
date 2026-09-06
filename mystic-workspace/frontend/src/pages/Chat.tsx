@@ -275,9 +275,9 @@ export default function Chat() {
   }
 
   async function handleStartChatWithLookedUpUser() {
-    if (!lookedUpUser?.userTag) return
+    if (!lookedUpUser?.id) return
     try {
-      const conv = await chatService.createDirectConversationByTag(lookedUpUser.userTag)
+      const conv = await chatService.createDirectConversation(lookedUpUser.id)
       setConversations((prev) => [conv, ...prev.filter((c) => c.id !== conv.id)])
       setSelectedConversation(conv)
       setShowNewChatModal(false)

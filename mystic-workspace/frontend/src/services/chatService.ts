@@ -1,5 +1,6 @@
 import api from './api'
 import type { Conversation, Message, User } from '../types'
+import { generateFallbackTag } from './authService'
 
 export const chatService = {
   async getConversations(): Promise<Conversation[]> {
@@ -22,14 +23,41 @@ export const chatService = {
 
   async createDirectConversationByTag(userTag: string): Promise<Conversation> {
     const cleanTag = encodeURIComponent(userTag.trim().toUpperCase())
-    const res = await api.post<Conversation>(`/conversations/direct/tag/${cleanTag}`)
-    return res.data
+    try {
+      const res = await api.post<Conversation>(`/conversations/direct/tag/${cleanTag}`)
+      return res.data
+    } catch {
+      // Resilient Fallback: lookup user by tag and create direct conversation via recipientId
+      const targetUser = await this.lookupUserByTag(userTag)
+      return this.createDirectConversation(targetUser.id)
+    }
   },
 
   async lookupUserByTag(userTag: string): Promise<User> {
-    const cleanTag = encodeURIComponent(userTag.trim().toUpperCase())
-    const res = await api.get<User>(`/conversations/lookup/tag/${cleanTag}`)
-    return res.data
+    const normalizedTag = userTag.trim().toUpperCase()
+    const cleanTag = encodeURIComponent(normalizedTag)
+    try {
+      const res = await api.get<User>(`/conversations/lookup/tag/${cleanTag}`)
+      const u = res.data
+      if (!u.userTag) {
+        u.userTag = generateFallbackTag(u.id, u.email)
+      }
+      return u
+    } catch {
+      // Resilient Fallback: fetch workspace users and match by tag
+      const allUsers = await this.searchUsers()
+      const match = allUsers.find((u) => {
+        const uTag = (u.userTag || generateFallbackTag(u.id, u.email)).toUpperCase()
+        return uTag === normalizedTag
+      })
+      if (match) {
+        return {
+          ...match,
+          userTag: match.userTag || generateFallbackTag(match.id, match.email),
+        }
+      }
+      throw new Error(`No user found with ID: ${userTag}`)
+    }
   },
 
   async createGroupConversation(title: string, memberIds: number[]): Promise<Conversation> {
@@ -56,7 +84,10 @@ export const chatService = {
     const res = await api.get<User[]>('/conversations/users', {
       params: { query },
     })
-    return res.data
+    return res.data.map((u) => ({
+      ...u,
+      userTag: u.userTag || generateFallbackTag(u.id, u.email),
+    }))
   },
 
   async getMessages(conversationId: number, query?: string): Promise<Message[]> {
