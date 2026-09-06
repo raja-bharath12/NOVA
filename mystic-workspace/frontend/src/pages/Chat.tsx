@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search,
@@ -21,9 +22,17 @@ import {
   Users,
   MessageSquare,
   Sparkles,
+  Copy,
+  Share2,
+  Link as LinkIcon,
+  Hash,
+  UserCheck,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useCall } from '../context/CallContext'
+import { useToast } from '../context/ToastContext'
 import { chatService } from '../services/chatService'
 import { fileService } from '../services/fileService'
 import { websocketService } from '../services/websocketService'
@@ -33,6 +42,9 @@ import type { Conversation, Message, User, FileItem, TypingEvent } from '../type
 export default function Chat() {
   const { user } = useAuth()
   const { initiateCall, onlineUserIds } = useCall()
+  const { showToast } = useToast()
+  const { userTag: deepLinkTag } = useParams<{ userTag?: string }>()
+  const navigate = useNavigate()
 
   // Conversations State
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -56,10 +68,21 @@ export default function Chat() {
   // UI Panels State
   const [showRightPane, setShowRightPane] = useState(false)
   const [showNewChatModal, setShowNewChatModal] = useState(false)
+  const [newChatTab, setNewChatTab] = useState<'USERS' | 'TAG'>('TAG')
   const [newChatType, setNewChatType] = useState<'DIRECT' | 'GROUP'>('DIRECT')
   const [newGroupTitle, setNewGroupTitle] = useState('')
   const [workspaceUsers, setWorkspaceUsers] = useState<User[]>([])
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
+
+  // User Tag Modal State
+  const [tagInput, setTagInput] = useState('')
+  const [lookedUpUser, setLookedUpUser] = useState<User | null>(null)
+  const [tagSearching, setTagSearching] = useState(false)
+  const [tagError, setTagError] = useState<string | null>(null)
+
+  // Clipboard feedback state
+  const [copiedTag, setCopiedTag] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -68,6 +91,26 @@ export default function Chat() {
   useEffect(() => {
     loadConversations()
   }, [])
+
+  // Handle direct chat deep link via /chat/u/:userTag
+  useEffect(() => {
+    if (deepLinkTag) {
+      handleOpenConversationByTag(deepLinkTag)
+    }
+  }, [deepLinkTag])
+
+  async function handleOpenConversationByTag(tag: string) {
+    try {
+      const conv = await chatService.createDirectConversationByTag(tag)
+      setConversations((prev) => [conv, ...prev.filter((c) => c.id !== conv.id)])
+      setSelectedConversation(conv)
+      showToast(`Connected to ${conv.title}!`, 'success')
+      navigate('/chat', { replace: true })
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Could not find user with that ID.'
+      showToast(msg, 'warning')
+    }
+  }
 
   // Subscribe to real-time conversation events
   useEffect(() => {
@@ -167,10 +210,76 @@ export default function Chat() {
 
   async function openNewChatModal() {
     setShowNewChatModal(true)
+    setNewChatTab('TAG')
+    setTagInput('')
+    setLookedUpUser(null)
+    setTagError(null)
     const users = await chatService.searchUsers()
     setWorkspaceUsers(users)
     setSelectedUserIds([])
     setNewGroupTitle('')
+  }
+
+  function handleCopyTag() {
+    if (!user?.userTag) return
+    navigator.clipboard.writeText(user.userTag)
+    setCopiedTag(true)
+    showToast('Your Chat ID copied to clipboard!', 'success')
+    setTimeout(() => setCopiedTag(false), 2000)
+  }
+
+  function handleCopyLink() {
+    if (!user?.userTag) return
+    const link = `${window.location.origin}/chat/u/${user.userTag}`
+    navigator.clipboard.writeText(link)
+    setCopiedLink(true)
+    showToast('Direct Chat Link copied to clipboard!', 'success')
+    setTimeout(() => setCopiedLink(false), 2000)
+  }
+
+  async function handleLookupTag(rawInput: string) {
+    const trimmed = rawInput.trim()
+    setTagInput(trimmed)
+    setTagError(null)
+    setLookedUpUser(null)
+
+    if (!trimmed) return
+
+    // Extract tag if a full URL is pasted
+    let tag = trimmed
+    if (trimmed.includes('/chat/u/')) {
+      tag = trimmed.split('/chat/u/')[1].split('?')[0].split('/')[0]
+    }
+
+    tag = tag.toUpperCase().replace(/^@/, '')
+
+    if (user?.userTag && tag === user.userTag.toUpperCase()) {
+      setTagError('This is your own Chat ID!')
+      return
+    }
+
+    try {
+      setTagSearching(true)
+      const foundUser = await chatService.lookupUserByTag(tag)
+      setLookedUpUser(foundUser)
+    } catch (err: any) {
+      setTagError('No active user found with ID: ' + tag)
+    } finally {
+      setTagSearching(false)
+    }
+  }
+
+  async function handleStartChatWithLookedUpUser() {
+    if (!lookedUpUser?.userTag) return
+    try {
+      const conv = await chatService.createDirectConversationByTag(lookedUpUser.userTag)
+      setConversations((prev) => [conv, ...prev.filter((c) => c.id !== conv.id)])
+      setSelectedConversation(conv)
+      setShowNewChatModal(false)
+      showToast(`Chat started with ${lookedUpUser.name}!`, 'success')
+    } catch (err: any) {
+      showToast('Could not start conversation.', 'warning')
+    }
   }
 
   async function handleCreateConversation() {
@@ -301,6 +410,35 @@ export default function Chat() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl pl-8 pr-3 py-1.5 text-xs text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50 transition-all"
             />
+          </div>
+        </div>
+
+        {/* User Chat ID & Shareable Link Banner */}
+        <div className="mx-3 my-2 p-2.5 rounded-xl bg-gradient-to-r from-violet-600/10 via-cyan-500/10 to-indigo-600/10 border border-violet-500/20 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[10px] font-mono font-semibold text-muted uppercase">MY ID:</span>
+              <span className="font-mono text-xs font-bold text-cyan-300 tracking-wider truncate">
+                {user?.userTag || 'MYST-DEMO01'}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                onClick={handleCopyTag}
+                title="Copy Chat ID"
+                className="p-1 rounded-lg bg-white/[0.04] hover:bg-violet-500/20 text-muted hover:text-cyan-300 border border-white/[0.06] transition-all"
+              >
+                {copiedTag ? <Check size={12} className="text-cyan-400" /> : <Copy size={12} />}
+              </button>
+              <button
+                onClick={handleCopyLink}
+                title="Copy Shareable Direct Chat Link"
+                className="px-1.5 py-1 rounded-lg bg-white/[0.04] hover:bg-cyan-500/20 text-muted hover:text-cyan-300 border border-white/[0.06] transition-all flex items-center gap-1 text-[10px] font-medium"
+              >
+                {copiedLink ? <Check size={12} className="text-cyan-400" /> : <LinkIcon size={12} />}
+                <span>Share Link</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -802,103 +940,220 @@ export default function Chat() {
                 </button>
               </div>
 
-              {/* Type Toggle: 1:1 or Group */}
+              {/* Main Tab Switcher: Direct ID vs Browse Team */}
               <div className="flex rounded-xl bg-void-900 p-1 mb-4 border border-white/[0.06]">
                 <button
                   type="button"
-                  onClick={() => {
-                    setNewChatType('DIRECT')
-                    setSelectedUserIds([])
-                  }}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    newChatType === 'DIRECT' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
+                  onClick={() => setNewChatTab('TAG')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                    newChatTab === 'TAG'
+                      ? 'bg-gradient-to-r from-violet-600/40 to-cyan-600/40 text-silver shadow-glow border border-violet-400/30'
+                      : 'text-muted hover:text-silver'
                   }`}
                 >
-                  Direct Message
+                  <Hash size={13} />
+                  <span>Enter User ID / Link</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setNewChatType('GROUP')
-                    setSelectedUserIds([])
-                  }}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                    newChatType === 'GROUP' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
+                  onClick={() => setNewChatTab('USERS')}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
+                    newChatTab === 'USERS'
+                      ? 'bg-gradient-to-r from-violet-600/40 to-cyan-600/40 text-silver shadow-glow border border-violet-400/30'
+                      : 'text-muted hover:text-silver'
                   }`}
                 >
-                  Group Chat
+                  <Users size={13} />
+                  <span>Browse Members</span>
                 </button>
               </div>
 
-              {newChatType === 'GROUP' && (
-                <div className="mb-4">
-                  <label className="label-tracked block mb-1">Group Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Project Nova Leads"
-                    value={newGroupTitle}
-                    onChange={(e) => setNewGroupTitle(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2 text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50"
-                  />
-                </div>
-              )}
+              {newChatTab === 'TAG' ? (
+                /* Tab 1: Enter Tag / ID */
+                <div className="space-y-3 mb-6">
+                  <div>
+                    <label className="label-tracked block mb-1.5 text-xs">User ID or Invite Link</label>
+                    <div className="relative flex items-center">
+                      <Hash size={14} className="absolute left-3 text-muted" />
+                      <input
+                        type="text"
+                        placeholder="e.g. MYST-8K4P9Z or paste invite URL"
+                        value={tagInput}
+                        onChange={(e) => handleLookupTag(e.target.value)}
+                        className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl pl-9 pr-8 py-2 text-sm text-silver font-mono placeholder:font-sans placeholder:text-muted focus:outline-none focus:border-cyan-400/50 transition-all uppercase"
+                      />
+                      {tagSearching && (
+                        <div className="absolute right-3">
+                          <div className="w-3.5 h-3.5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-              {/* User Selection List */}
-              <label className="label-tracked block mb-2">Select Teammates</label>
-              <div className="max-h-48 overflow-y-auto space-y-1.5 mb-6">
-                {workspaceUsers.map((u) => {
-                  const isSelected = selectedUserIds.includes(u.id)
+                  {tagError && (
+                    <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                      <X size={14} className="flex-shrink-0" />
+                      <span>{tagError}</span>
+                    </div>
+                  )}
 
-                  return (
-                    <div
-                      key={u.id}
-                      onClick={() => {
-                        if (newChatType === 'DIRECT') {
-                          setSelectedUserIds([u.id])
-                        } else {
-                          setSelectedUserIds((prev) =>
-                            prev.includes(u.id) ? prev.filter((id) => id !== u.id) : [...prev, u.id]
-                          )
-                        }
-                      }}
-                      className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
-                        isSelected
-                          ? 'bg-violet-500/20 border border-violet-400/40'
-                          : 'bg-white/[0.02] border border-transparent hover:bg-white/[0.05]'
-                      }`}
+                  {lookedUpUser && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3.5 rounded-xl bg-violet-500/10 border border-violet-400/30 flex items-center justify-between"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
-                          {u.name.slice(0, 2).toUpperCase()}
+                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center text-xs font-bold text-void-950 font-display">
+                          {lookedUpUser.name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-silver">{u.name}</p>
-                          <p className="text-[10px] text-muted">{u.email}</p>
+                          <p className="text-xs font-semibold text-silver flex items-center gap-1.5">
+                            {lookedUpUser.name}
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                              {lookedUpUser.userTag}
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-muted">{lookedUpUser.email}</p>
                         </div>
                       </div>
-                      {isSelected && <Check size={16} className="text-cyan-400" />}
-                    </div>
-                  )
-                })}
-              </div>
+                      <button
+                        type="button"
+                        onClick={handleStartChatWithLookedUpUser}
+                        className="px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-void-950 font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
+                      >
+                        <span>Chat</span>
+                        <ArrowRight size={12} />
+                      </button>
+                    </motion.div>
+                  )}
 
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowNewChatModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateConversation}
-                  disabled={selectedUserIds.length === 0 || (newChatType === 'GROUP' && !newGroupTitle.trim())}
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs shadow-glow disabled:opacity-40"
-                >
-                  Start Chat
-                </button>
-              </div>
+                  {!lookedUpUser && !tagError && !tagInput && (
+                    <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] text-[11px] text-muted flex items-center gap-2">
+                      <Info size={14} className="text-cyan-400 flex-shrink-0" />
+                      <span>Ask a teammate for their 10-character Chat ID or invite link to connect privately.</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewChatModal(false)}
+                      className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Tab 2: Browse Workspace Teammates */
+                <div>
+                  {/* Type Toggle: 1:1 or Group */}
+                  <div className="flex rounded-xl bg-void-900 p-1 mb-4 border border-white/[0.06]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewChatType('DIRECT')
+                        setSelectedUserIds([])
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        newChatType === 'DIRECT' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
+                      }`}
+                    >
+                      Direct Message
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewChatType('GROUP')
+                        setSelectedUserIds([])
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        newChatType === 'GROUP' ? 'bg-violet-600/40 text-silver shadow-glow' : 'text-muted'
+                      }`}
+                    >
+                      Group Chat
+                    </button>
+                  </div>
+
+                  {newChatType === 'GROUP' && (
+                    <div className="mb-4">
+                      <label className="label-tracked block mb-1">Group Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Project Nova Leads"
+                        value={newGroupTitle}
+                        onChange={(e) => setNewGroupTitle(e.target.value)}
+                        className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2 text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50"
+                      />
+                    </div>
+                  )}
+
+                  {/* User Selection List */}
+                  <label className="label-tracked block mb-2">Select Teammates</label>
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 mb-6">
+                    {workspaceUsers.map((u) => {
+                      const isSelected = selectedUserIds.includes(u.id)
+
+                      return (
+                        <div
+                          key={u.id}
+                          onClick={() => {
+                            if (newChatType === 'DIRECT') {
+                              setSelectedUserIds([u.id])
+                            } else {
+                              setSelectedUserIds((prev) =>
+                                prev.includes(u.id) ? prev.filter((id) => id !== u.id) : [...prev, u.id]
+                              )
+                            }
+                          }}
+                          className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all ${
+                            isSelected
+                              ? 'bg-violet-500/20 border border-violet-400/40'
+                              : 'bg-white/[0.02] border border-transparent hover:bg-white/[0.05]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-void-900 border border-white/[0.08] flex items-center justify-center text-xs font-semibold text-lavender">
+                              {u.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-silver flex items-center gap-1.5">
+                                {u.name}
+                                {u.userTag && (
+                                  <span className="text-[9px] font-mono px-1 rounded bg-white/[0.06] text-muted">
+                                    {u.userTag}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-[10px] text-muted">{u.email}</p>
+                            </div>
+                          </div>
+                          {isSelected && <Check size={16} className="text-cyan-400" />}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewChatModal(false)}
+                      className="px-4 py-2 rounded-xl text-xs text-muted hover:text-silver"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateConversation}
+                      disabled={selectedUserIds.length === 0 || (newChatType === 'GROUP' && !newGroupTitle.trim())}
+                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs shadow-glow disabled:opacity-40"
+                    >
+                      Start Chat
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

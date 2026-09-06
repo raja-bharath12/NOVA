@@ -162,6 +162,7 @@ public class MeetingService {
                 .id(host.getId())
                 .name(host.getName())
                 .email(host.getEmail())
+                .userTag(host.getUserTag())
                 .build();
 
         List<MeetingParticipantDto> participantDtos = meetingParticipantRepository.findByMeetingId(entity.getId()).stream()
@@ -171,6 +172,7 @@ public class MeetingService {
                                 .id(p.getUser().getId())
                                 .name(p.getUser().getName())
                                 .email(p.getUser().getEmail())
+                                .userTag(p.getUser().getUserTag())
                                 .build())
                         .role(p.getRole().name())
                         .joinedAt(p.getJoinedAt())

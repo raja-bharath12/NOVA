@@ -226,6 +226,7 @@ public class MessageService {
                 .id(sender.getId())
                 .name(sender.getName())
                 .email(sender.getEmail())
+                .userTag(sender.getUserTag())
                 .build();
 
         List<FileDto> attachmentDtos = entity.getAttachments().stream()

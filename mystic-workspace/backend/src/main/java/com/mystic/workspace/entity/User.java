@@ -31,6 +31,9 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column(unique = true, length = 16)
+    private String userTag;
+
     @Builder.Default
     @Column(nullable = false)
     private Instant createdAt = Instant.now();

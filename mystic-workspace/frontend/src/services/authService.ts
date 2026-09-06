@@ -6,6 +6,7 @@ interface AuthResponse {
   userId: number
   name: string
   email: string
+  userTag?: string
 }
 
 export async function login(email: string, password: string): Promise<User> {
@@ -18,8 +19,21 @@ export async function register(name: string, email: string, password: string): P
   return persist(data)
 }
 
+export async function fetchCurrentUserProfile(): Promise<User> {
+  const { data } = await api.get<User>('/users/me')
+  const current = getStoredUser() || {}
+  const merged: User = { ...current, ...data }
+  localStorage.setItem('mystic_user', JSON.stringify(merged))
+  return merged
+}
+
 function persist(data: AuthResponse): User {
-  const user: User = { id: data.userId, name: data.name, email: data.email }
+  const user: User = {
+    id: data.userId,
+    name: data.name,
+    email: data.email,
+    userTag: data.userTag,
+  }
   localStorage.setItem('mystic_token', data.token)
   localStorage.setItem('mystic_user', JSON.stringify(user))
   return user

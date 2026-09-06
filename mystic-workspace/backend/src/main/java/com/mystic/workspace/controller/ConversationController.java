@@ -74,6 +74,22 @@ public class ConversationController {
         return conversationService.searchUsers(currentUser(principal), query);
     }
 
+    @PostMapping("/direct/tag/{userTag}")
+    public ConversationDto createDirectByTag(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String userTag
+    ) {
+        return conversationService.createOrGetDirectByTag(currentUser(principal), userTag);
+    }
+
+    @GetMapping("/lookup/tag/{userTag}")
+    public UserDto lookupUserByTag(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String userTag
+    ) {
+        return conversationService.lookupUserByTag(currentUser(principal), userTag);
+    }
+
     private User currentUser(UserPrincipal principal) {
         return userRepository.findById(principal.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));

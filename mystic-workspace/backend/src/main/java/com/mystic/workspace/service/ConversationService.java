@@ -196,18 +196,90 @@ public class ConversationService {
         conversationMemberRepository.deleteByConversationIdAndUserId(conversationId, targetUserId);
     }
 
+    @Transactional
+    public ConversationDto createOrGetDirectByTag(User currentUser, String userTag) {
+        if (userTag == null || userTag.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User Tag is required");
+        }
+
+        String normalizedTag = userTag.trim().toUpperCase();
+        User recipient = userRepository.findByUserTagIgnoreCase(normalizedTag)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No user found with ID: " + userTag.trim()));
+
+        if (recipient.getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot start a direct conversation with yourself");
+        }
+
+        // Check if conversation already exists
+        Optional<Conversation> existing = conversationRepository.findDirectConversationBetween(currentUser.getId(), recipient.getId());
+        if (existing.isPresent()) {
+            return toDto(existing.get(), currentUser);
+        }
+
+        Conversation conversation = Conversation.builder()
+                .type(Conversation.Type.DIRECT)
+                .title(recipient.getName())
+                .createdBy(currentUser)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+
+        Conversation saved = conversationRepository.save(conversation);
+
+        ConversationMember m1 = ConversationMember.builder()
+                .conversation(saved)
+                .user(currentUser)
+                .role(ConversationMember.Role.MEMBER)
+                .build();
+
+        ConversationMember m2 = ConversationMember.builder()
+                .conversation(saved)
+                .user(recipient)
+                .role(ConversationMember.Role.MEMBER)
+                .build();
+
+        conversationMemberRepository.saveAll(List.of(m1, m2));
+
+        // Notify recipient over private queue
+        notifyUserNewConversation(recipient.getEmail(), toDto(saved, recipient));
+
+        return toDto(saved, currentUser);
+    }
+
+    @Transactional(readOnly = true)
+    public UserDto lookupUserByTag(User currentUser, String userTag) {
+        if (userTag == null || userTag.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User Tag is required");
+        }
+
+        String normalizedTag = userTag.trim().toUpperCase();
+        User user = userRepository.findByUserTagIgnoreCase(normalizedTag)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No user found with tag: " + userTag.trim()));
+
+        return UserDto.builder()
+                .id(user.getId())
+                .name(user.getName())
+                .email(user.getEmail())
+                .userTag(user.getUserTag())
+                .status(presenceService.getUserStatus(user.getId()))
+                .build();
+    }
+
     public List<UserDto> searchUsers(User currentUser, String query) {
+        String q = (query != null) ? query.trim().toLowerCase() : "";
         List<User> users = userRepository.findAll().stream()
                 .filter(u -> !u.getId().equals(currentUser.getId()))
-                .filter(u -> query == null || query.isBlank() ||
-                        u.getName().toLowerCase().contains(query.toLowerCase()) ||
-                        u.getEmail().toLowerCase().contains(query.toLowerCase()))
+                .filter(u -> q.isEmpty() ||
+                        (u.getName() != null && u.getName().toLowerCase().contains(q)) ||
+                        (u.getEmail() != null && u.getEmail().toLowerCase().contains(q)) ||
+                        (u.getUserTag() != null && u.getUserTag().toLowerCase().contains(q)))
                 .collect(Collectors.toList());
 
         return users.stream().map(u -> UserDto.builder()
                 .id(u.getId())
                 .name(u.getName())
                 .email(u.getEmail())
+                .userTag(u.getUserTag())
                 .status(presenceService.getUserStatus(u.getId()))
                 .build()).collect(Collectors.toList());
     }
@@ -228,6 +300,7 @@ public class ConversationService {
                 .id(m.getUser().getId())
                 .name(m.getUser().getName())
                 .email(m.getUser().getEmail())
+                .userTag(m.getUser().getUserTag())
                 .status(presenceService.getUserStatus(m.getUser().getId()))
                 .build()).collect(Collectors.toList());
 
@@ -258,7 +331,12 @@ public class ConversationService {
             lastMessageDto = MessageDto.builder()
                     .id(lm.getId())
                     .conversationId(entity.getId())
-                    .sender(UserDto.builder().id(lm.getSender().getId()).name(lm.getSender().getName()).email(lm.getSender().getEmail()).build())
+                    .sender(UserDto.builder()
+                            .id(lm.getSender().getId())
+                            .name(lm.getSender().getName())
+                            .email(lm.getSender().getEmail())
+                            .userTag(lm.getSender().getUserTag())
+                            .build())
                     .content(lm.isDeleted() ? "This message was deleted" : lm.getContent())
                     .isEdited(lm.isEdited())
                     .isDeleted(lm.isDeleted())
@@ -270,7 +348,12 @@ public class ConversationService {
                 .id(entity.getId())
                 .type(entity.getType().name())
                 .title(displayTitle)
-                .createdBy(entity.getCreatedBy() != null ? UserDto.builder().id(entity.getCreatedBy().getId()).name(entity.getCreatedBy().getName()).email(entity.getCreatedBy().getEmail()).build() : null)
+                .createdBy(entity.getCreatedBy() != null ? UserDto.builder()
+                        .id(entity.getCreatedBy().getId())
+                        .name(entity.getCreatedBy().getName())
+                        .email(entity.getCreatedBy().getEmail())
+                        .userTag(entity.getCreatedBy().getUserTag())
+                        .build() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .members(memberDtos)

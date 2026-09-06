@@ -71,6 +71,16 @@ export default function App() {
               }
             />
             <Route
+              path="/chat/u/:userTag"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Chat />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/meetings"
               element={
                 <ProtectedRoute>

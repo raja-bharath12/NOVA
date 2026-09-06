@@ -164,6 +164,7 @@ public class FileService {
                     .id(entity.getOwner().getId())
                     .name(entity.getOwner().getName())
                     .email(entity.getOwner().getEmail())
+                    .userTag(entity.getOwner().getUserTag())
                     .build();
         }
 

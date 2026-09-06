@@ -20,6 +20,18 @@ export const chatService = {
     return res.data
   },
 
+  async createDirectConversationByTag(userTag: string): Promise<Conversation> {
+    const cleanTag = encodeURIComponent(userTag.trim().toUpperCase())
+    const res = await api.post<Conversation>(`/conversations/direct/tag/${cleanTag}`)
+    return res.data
+  },
+
+  async lookupUserByTag(userTag: string): Promise<User> {
+    const cleanTag = encodeURIComponent(userTag.trim().toUpperCase())
+    const res = await api.get<User>(`/conversations/lookup/tag/${cleanTag}`)
+    return res.data
+  },
+
   async createGroupConversation(title: string, memberIds: number[]): Promise<Conversation> {
     const res = await api.post<Conversation>('/conversations', {
       type: 'GROUP',

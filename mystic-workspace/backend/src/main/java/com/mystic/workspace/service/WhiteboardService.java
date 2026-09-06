@@ -118,6 +118,7 @@ public class WhiteboardService {
                 .id(owner.getId())
                 .name(owner.getName())
                 .email(owner.getEmail())
+                .userTag(owner.getUserTag())
                 .build();
 
         return WhiteboardDto.builder()

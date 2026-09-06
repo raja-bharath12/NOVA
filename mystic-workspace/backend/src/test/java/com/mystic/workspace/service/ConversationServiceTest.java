@@ -117,4 +117,45 @@ class ConversationServiceTest {
         assertEquals("GROUP", result.getType());
         assertEquals("Core Project Team", result.getTitle());
     }
+
+    @Test
+    void testCreateOrGetDirectByTag() {
+        user2.setUserTag("MYST-TEST02");
+        when(userRepository.findByUserTagIgnoreCase("MYST-TEST02")).thenReturn(Optional.of(user2));
+        when(conversationRepository.findDirectConversationBetween(1L, 2L)).thenReturn(Optional.empty());
+
+        Conversation saved = Conversation.builder()
+                .id(30L)
+                .type(Conversation.Type.DIRECT)
+                .createdBy(user1)
+                .title("User Two")
+                .build();
+
+        when(conversationRepository.save(any(Conversation.class))).thenReturn(saved);
+        when(conversationMemberRepository.findByConversationId(30L)).thenReturn(List.of(
+                ConversationMember.builder().user(user1).role(ConversationMember.Role.MEMBER).build(),
+                ConversationMember.builder().user(user2).role(ConversationMember.Role.MEMBER).build()
+        ));
+
+        ConversationDto result = conversationService.createOrGetDirectByTag(user1, "myst-test02");
+
+        assertNotNull(result);
+        assertEquals("DIRECT", result.getType());
+        assertEquals("User Two", result.getTitle());
+        verify(conversationRepository).save(any(Conversation.class));
+    }
+
+    @Test
+    void testLookupUserByTag() {
+        user2.setUserTag("MYST-TEST02");
+        when(userRepository.findByUserTagIgnoreCase("MYST-TEST02")).thenReturn(Optional.of(user2));
+        when(presenceService.getUserStatus(2L)).thenReturn("ONLINE");
+
+        var userDto = conversationService.lookupUserByTag(user1, "MYST-TEST02");
+
+        assertNotNull(userDto);
+        assertEquals("User Two", userDto.getName());
+        assertEquals("MYST-TEST02", userDto.getUserTag());
+        assertEquals("ONLINE", userDto.getStatus());
+    }
 }
