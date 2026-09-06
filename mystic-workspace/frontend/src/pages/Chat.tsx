@@ -777,146 +777,187 @@ export default function Chat() {
                 </div>
               ) : (
                 messages.map((msg) => {
-                  const isOwn = msg.sender.id === user?.id
+                  const isOwn = Boolean(
+                    user && (
+                      (user.id != null && Number(msg.sender?.id) === Number(user.id)) ||
+                      (user.email && msg.sender?.email && msg.sender.email.trim().toLowerCase() === user.email.trim().toLowerCase()) ||
+                      (user.userTag && msg.sender?.userTag && msg.sender.userTag.trim().toUpperCase() === user.userTag.trim().toUpperCase())
+                    )
+                  )
 
                   return (
                     <motion.div
                       key={msg.id}
-                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      initial={{ opacity: 0, y: 6, scale: 0.98 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.2 }}
-                      className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} group`}
+                      transition={{ duration: 0.18 }}
+                      className={`w-full flex ${isOwn ? 'justify-end' : 'justify-start'} my-1 group`}
                     >
-                      {/* Sender Name in Group Chats */}
-                      {!isOwn && selectedConversation.type === 'GROUP' && (
-                        <span className="text-[11px] text-muted ml-3 mb-1">{msg.sender.name}</span>
-                      )}
-
-                      <div className="relative max-w-lg">
-                        {/* Message Action Bar on Hover */}
-                        <div
-                          className={`absolute -top-7 ${
-                            isOwn ? 'right-0' : 'left-0'
-                          } hidden group-hover:flex items-center gap-1 bg-void-900 border border-white/[0.08] rounded-lg px-1.5 py-0.5 shadow-lg z-10`}
-                        >
-                          <button
-                            onClick={() => setReplyingTo(msg)}
-                            className="p-1 hover:text-cyan-400 text-muted transition-colors"
-                            title="Reply"
-                          >
-                            <Reply size={12} />
-                          </button>
-                          {isOwn && !msg.isDeleted && (
-                            <button
-                              onClick={() => {
-                                setEditingMessage(msg)
-                                setInputText(msg.content)
-                              }}
-                              className="p-1 hover:text-violet-400 text-muted transition-colors"
-                              title="Edit"
-                            >
-                              <Edit2 size={12} />
-                            </button>
-                          )}
-                          {(isOwn || selectedConversation.userRole === 'ADMIN') && !msg.isDeleted && (
-                            <button
-                              onClick={() => handleDeleteMessage(msg.id)}
-                              className="p-1 hover:text-rose-400 text-muted transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Reply Preview Quote */}
-                        {msg.replyToContent && (
-                          <div className="text-xs bg-black/20 border-l-2 border-violet-400 px-3 py-1.5 rounded-t-lg text-muted mb-0.5">
-                            <span className="font-semibold text-lavender">{msg.replyToSenderName}</span>: {msg.replyToContent}
+                      <div
+                        className={`flex items-end gap-2 max-w-[88%] sm:max-w-md lg:max-w-xl ${
+                          isOwn ? 'flex-row-reverse' : 'flex-row'
+                        }`}
+                      >
+                        {/* Avatar for incoming messages */}
+                        {!isOwn && (
+                          <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-violet-600/60 to-cyan-500/50 border border-white/[0.1] flex items-center justify-center text-[10px] font-bold text-silver flex-shrink-0 mb-0.5 shadow-sm">
+                            {msg.sender.name ? msg.sender.name.slice(0, 2).toUpperCase() : '??'}
                           </div>
                         )}
 
-                        {/* Message Bubble */}
-                        <div
-                          className={`rounded-2xl p-3.5 text-sm ${
-                            isOwn
-                              ? 'bg-gradient-to-r from-violet-600/40 to-violet-500/30 text-silver border border-violet-400/30 rounded-tr-none shadow-glow'
-                              : 'bg-white/[0.04] text-silver border border-white/[0.06] rounded-tl-none'
-                          } ${msg.isDeleted ? 'italic text-muted' : ''}`}
-                        >
-                          {/* File Attachments */}
-                          {msg.attachments && msg.attachments.length > 0 && (
-                            <div className="space-y-2 mb-2">
-                              {msg.attachments.map((file) => {
-                                const isImg = file.mimeType.startsWith('image/')
-                                const isVid = file.mimeType.startsWith('video/')
-                                const isPdf = file.mimeType === 'application/pdf'
-
-                                if (isImg) {
-                                  return (
-                                    <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.1] max-w-xs">
-                                      <img
-                                        src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
-                                        alt={file.originalFilename}
-                                        className="w-full h-auto object-cover max-h-60"
-                                      />
-                                    </div>
-                                  )
-                                }
-
-                                if (isVid) {
-                                  return (
-                                    <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.1] max-w-xs">
-                                      <video
-                                        src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
-                                        controls
-                                        className="w-full max-h-60"
-                                      />
-                                    </div>
-                                  )
-                                }
-
-                                return (
-                                  <a
-                                    key={file.id}
-                                    href={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
-                                    download={file.originalFilename}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="flex items-center gap-3 p-2.5 rounded-xl bg-void-950/60 border border-white/[0.08] hover:border-violet-400/40 transition-all"
-                                  >
-                                    <FileText size={20} className="text-cyan-400 flex-shrink-0" />
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-xs font-medium text-silver truncate">{file.originalFilename}</p>
-                                      <p className="text-[10px] text-muted">{(file.fileSize / 1024).toFixed(1)} KB</p>
-                                    </div>
-                                    <Download size={14} className="text-muted hover:text-lavender" />
-                                  </a>
-                                )
-                              })}
-                            </div>
+                        <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} min-w-0 flex-1`}>
+                          {/* Sender Name for group chats */}
+                          {!isOwn && selectedConversation.type === 'GROUP' && (
+                            <span className="text-[11px] font-semibold text-cyan-400 ml-2 mb-1">
+                              {msg.sender.name}
+                            </span>
                           )}
 
-                          <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                          <div className="relative group/bubble max-w-full">
+                            {/* Message Action Bar on Hover */}
+                            <div
+                              className={`absolute -top-7 ${
+                                isOwn ? 'right-0' : 'left-0'
+                              } hidden group-hover/bubble:flex items-center gap-1 bg-void-900/95 border border-white/[0.12] backdrop-blur-md rounded-xl px-2 py-0.5 shadow-xl z-10`}
+                            >
+                              <button
+                                onClick={() => setReplyingTo(msg)}
+                                className="p-1 hover:text-cyan-400 text-muted transition-colors"
+                                title="Reply"
+                              >
+                                <Reply size={12} />
+                              </button>
+                              {isOwn && !msg.isDeleted && (
+                                <button
+                                  onClick={() => {
+                                    setEditingMessage(msg)
+                                    setInputText(msg.content)
+                                  }}
+                                  className="p-1 hover:text-violet-400 text-muted transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                              )}
+                              {(isOwn || selectedConversation.userRole === 'ADMIN') && !msg.isDeleted && (
+                                <button
+                                  onClick={() => handleDeleteMessage(msg.id)}
+                                  className="p-1 hover:text-rose-400 text-muted transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
 
-                          {/* Footer: Time, Edited, Read Status */}
-                          <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-muted">
-                            {msg.isEdited && <span className="italic">edited</span>}
-                            <span>
-                              {new Date(msg.createdAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                            {isOwn && (
-                              <span title={msg.isRead ? 'Read' : 'Delivered'}>
-                                {msg.isRead ? (
-                                  <CheckCheck size={14} className="text-cyan-400" />
-                                ) : (
-                                  <Check size={14} className="text-muted" />
-                                )}
-                              </span>
+                            {/* Reply Preview Quote */}
+                            {msg.replyToContent && (
+                              <div
+                                className={`text-xs px-3 py-1.5 rounded-t-xl mb-0.5 border-l-2 ${
+                                  isOwn
+                                    ? 'bg-violet-950/60 border-violet-300 text-violet-100'
+                                    : 'bg-void-950/80 border-cyan-400 text-muted'
+                                }`}
+                              >
+                                <span className={`font-semibold ${isOwn ? 'text-violet-200' : 'text-cyan-300'}`}>
+                                  {msg.replyToSenderName}
+                                </span>
+                                : {msg.replyToContent}
+                              </div>
                             )}
+
+                            {/* Message Bubble */}
+                            <div
+                              className={`px-4 py-2.5 rounded-2xl text-[13.5px] sm:text-sm leading-relaxed shadow-md transition-all ${
+                                isOwn
+                                  ? 'bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-600 text-white rounded-br-xs border border-violet-400/40 shadow-[0_4px_18px_rgba(124,58,237,0.35)]'
+                                  : 'bg-void-900/90 text-slate-100 rounded-bl-xs border border-white/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.3)]'
+                              } ${msg.isDeleted ? 'italic opacity-60' : ''}`}
+                            >
+                              {/* File Attachments */}
+                              {msg.attachments && msg.attachments.length > 0 && (
+                                <div className="space-y-2 mb-2">
+                                  {msg.attachments.map((file) => {
+                                    const isImg = file.mimeType.startsWith('image/')
+                                    const isVid = file.mimeType.startsWith('video/')
+
+                                    if (isImg) {
+                                      return (
+                                        <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.15] max-w-xs">
+                                          <img
+                                            src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                            alt={file.originalFilename}
+                                            className="w-full h-auto object-cover max-h-60"
+                                          />
+                                        </div>
+                                      )
+                                    }
+
+                                    if (isVid) {
+                                      return (
+                                        <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.15] max-w-xs">
+                                          <video
+                                            src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                            controls
+                                            className="w-full max-h-60"
+                                          />
+                                        </div>
+                                      )
+                                    }
+
+                                    return (
+                                      <a
+                                        key={file.id}
+                                        href={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                        download={file.originalFilename}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
+                                          isOwn
+                                            ? 'bg-white/10 border-white/20 hover:bg-white/15 text-white'
+                                            : 'bg-void-950/70 border-white/[0.08] hover:border-violet-400/40 text-silver'
+                                        }`}
+                                      >
+                                        <FileText size={18} className={isOwn ? 'text-white' : 'text-cyan-400'} />
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-xs font-medium truncate">{file.originalFilename}</p>
+                                          <p className={`text-[10px] ${isOwn ? 'text-violet-200' : 'text-muted'}`}>
+                                            {(file.fileSize / 1024).toFixed(1)} KB
+                                          </p>
+                                        </div>
+                                        <Download size={14} className={isOwn ? 'text-white' : 'text-muted hover:text-lavender'} />
+                                      </a>
+                                    )
+                                  })}
+                                </div>
+                              )}
+
+                              <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+
+                              {/* Footer: Time, Edited, Read Status */}
+                              <div
+                                className={`flex items-center justify-end gap-1.5 mt-1 text-[10px] ${
+                                  isOwn ? 'text-violet-200/90' : 'text-muted'
+                                }`}
+                              >
+                                {msg.isEdited && <span className="italic opacity-80">edited</span>}
+                                <span>
+                                  {new Date(msg.createdAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                                {isOwn && (
+                                  <span title={msg.isRead ? 'Read' : 'Delivered'} className="flex items-center">
+                                    {msg.isRead ? (
+                                      <CheckCheck size={14} className="text-cyan-300" />
+                                    ) : (
+                                      <Check size={14} className="text-violet-200" />
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
