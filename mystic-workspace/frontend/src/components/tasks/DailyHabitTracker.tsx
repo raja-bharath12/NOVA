@@ -7,12 +7,13 @@ import {
   Trash2,
   Edit2,
   Check,
-  Sparkles,
-  RotateCcw,
-  CheckSquare,
   Calendar as CalendarIcon,
-  Flame,
-  Award
+  Lock,
+  X,
+  Settings2,
+  Sparkles,
+  CheckCircle2,
+  Flame
 } from 'lucide-react'
 import GlassPanel from '../dashboard/GlassPanel'
 
@@ -42,12 +43,21 @@ const MONTH_NAMES = [
 const DAY_ABBRS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 interface DailyHabitTrackerProps {
-  onClose?: () => void
+  isManageOpen?: boolean
+  setIsManageOpen?: (open: boolean) => void
 }
 
-export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
+export default function DailyHabitTracker({
+  isManageOpen = false,
+  setIsManageOpen
+}: DailyHabitTrackerProps) {
   // Navigation state
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
+
+  // Internal modal state fallback if not controlled from parent
+  const [internalManageOpen, setInternalManageOpen] = useState(false)
+  const isModalOpen = setIsManageOpen ? isManageOpen : internalManageOpen
+  const setModalOpen = setIsManageOpen || setInternalManageOpen
 
   // Habits list state
   const [habits, setHabits] = useState<DailyHabit[]>(() => {
@@ -64,8 +74,8 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
     try {
       const saved = localStorage.getItem('nova_habit_checks')
       if (saved) return JSON.parse(saved)
-      
-      // Generate some realistic sample data for the current month so it looks alive out of the box
+
+      // Initialize past days with realistic sample check-ins
       const initialMap: Record<string, Record<string, boolean>> = {}
       const today = new Date()
       const year = today.getFullYear()
@@ -78,7 +88,6 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
         const dateKey = `${year}-${monthStr}-${dayStr}`
         initialMap[dateKey] = {}
         DEFAULT_HABITS.forEach((h, idx) => {
-          // Semi-random deterministic check pattern based on day & index
           if ((day + idx) % 3 !== 0) {
             initialMap[dateKey][h.id] = true
           }
@@ -90,15 +99,17 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
     }
   })
 
-  // Add Habit Form
-  const [isAdding, setIsAdding] = useState(false)
+  // Add Habit Form state in modal
   const [newTitle, setNewTitle] = useState('')
   const [newEmoji, setNewEmoji] = useState('✨')
 
-  // Edit Habit Form
+  // Edit Habit state in modal
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editEmoji, setEditEmoji] = useState('')
+
+  // Toast notice for locked dates
+  const [lockedNotice, setLockedNotice] = useState<string | null>(null)
 
   // Persist habits to localStorage
   useEffect(() => {
@@ -115,30 +126,38 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
   const month = currentDate.getMonth()
   const totalDaysInMonth = new Date(year, month + 1, 0).getDate()
 
-  // Generate array of days for current month: [1, 2, 3, ... totalDaysInMonth]
+  // Midnight today reference for strict comparison
+  const today = new Date()
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+
+  // Generate array of days for current month with strict date locking
   const daysArray = useMemo(() => {
     return Array.from({ length: totalDaysInMonth }, (_, i) => {
       const dayNum = i + 1
       const dateObj = new Date(year, month, dayNum)
+      const dayMidnight = new Date(year, month, dayNum).getTime()
       const dayOfWeek = DAY_ABBRS[dateObj.getDay()]
       const monthStr = String(month + 1).padStart(2, '0')
       const dayStr = String(dayNum).padStart(2, '0')
       const dateKey = `${year}-${monthStr}-${dayStr}`
-      const today = new Date()
-      const isToday =
-        today.getFullYear() === year &&
-        today.getMonth() === month &&
-        today.getDate() === dayNum
+
+      const isToday = dayMidnight === todayMidnight
+      const isPast = dayMidnight < todayMidnight
+      const isFuture = dayMidnight > todayMidnight
+      const isLocked = isPast || isFuture
 
       return {
         dayNum,
         dayOfWeek,
         dateKey,
         isToday,
+        isPast,
+        isFuture,
+        isLocked,
         isWeekend: dateObj.getDay() === 0 || dateObj.getDay() === 6
       }
     })
-  }, [year, month, totalDaysInMonth])
+  }, [year, month, totalDaysInMonth, todayMidnight])
 
   // Group days into 7-day chunks (Week 1, Week 2, etc.)
   const weeks = useMemo(() => {
@@ -148,7 +167,6 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
 
     daysArray.forEach((day, idx) => {
       currentWeekDays.push(day)
-      // Group by 7 days or end of month
       if (currentWeekDays.length === 7 || idx === daysArray.length - 1) {
         result.push({ weekIndex, days: currentWeekDays })
         weekIndex++
@@ -158,22 +176,29 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
     return result
   }, [daysArray])
 
-  // Toggle checkbox state for habit on a specific dateKey
-  const handleToggleCheck = (habitId: string, dateKey: string) => {
+  // Toggle checkbox state for habit on a specific dateKey (ONLY ALLOWED FOR TODAY)
+  const handleToggleCheck = (habitId: string, day: (typeof daysArray)[0]) => {
+    if (day.isLocked) {
+      const reason = day.isFuture ? 'Future dates are locked.' : 'Past dates are locked records.'
+      setLockedNotice(reason)
+      setTimeout(() => setLockedNotice(null), 2500)
+      return
+    }
+
     setCheckMap((prev) => {
-      const dayChecks = prev[dateKey] || {}
+      const dayChecks = prev[day.dateKey] || {}
       const newDayChecks = {
         ...dayChecks,
         [habitId]: !dayChecks[habitId]
       }
       return {
         ...prev,
-        [dateKey]: newDayChecks
+        [day.dateKey]: newDayChecks
       }
     })
   }
 
-  // Add new habit
+  // Add new habit (within modal)
   const handleAddHabit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTitle.trim()) return
@@ -186,7 +211,6 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
     setHabits((prev) => [...prev, newHabit])
     setNewTitle('')
     setNewEmoji('✨')
-    setIsAdding(false)
   }
 
   // Start editing habit
@@ -223,11 +247,10 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
     setCurrentDate(new Date())
   }
 
-  // Calculate statistics
-  const todayObj = new Date()
-  const todayMonthStr = String(todayObj.getMonth() + 1).padStart(2, '0')
-  const todayDayStr = String(todayObj.getDate()).padStart(2, '0')
-  const todayDateKey = `${todayObj.getFullYear()}-${todayMonthStr}-${todayDayStr}`
+  // Statistics
+  const todayMonthStr = String(today.getMonth() + 1).padStart(2, '0')
+  const todayDayStr = String(today.getDate()).padStart(2, '0')
+  const todayDateKey = `${today.getFullYear()}-${todayMonthStr}-${todayDayStr}`
 
   // Today completed count
   const todayCompletedCount = useMemo(() => {
@@ -253,9 +276,23 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
 
   return (
     <div className="w-full space-y-6">
+      {/* Locked Date Floating Alert */}
+      <AnimatePresence>
+        {lockedNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-20 right-8 z-50 flex items-center gap-2 bg-void-950/90 border border-cyan-400/40 px-4 py-2.5 rounded-xl shadow-glow text-xs text-silver backdrop-blur-md"
+          >
+            <Lock size={14} className="text-cyan-400" />
+            <span>{lockedNotice} Real-time check-ins are active for Today.</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Header Card with Month & Progress Stats */}
       <GlassPanel className="p-5 md:p-6 border border-white/[0.08] shadow-glass relative overflow-hidden">
-        {/* Ambient subtle glow background */}
         <div className="absolute top-0 right-1/4 w-96 h-40 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-10 w-72 h-32 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -294,14 +331,13 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
                 </button>
               </div>
               <p className="text-xs text-muted mt-1">
-                Daily habit consistency matrix and monthly task accountability tracker.
+                Daily matrix records habit consistency in real time. Past & future dates are locked.
               </p>
             </div>
           </div>
 
           {/* Right: Metrics Badges & Progress Bar */}
           <div className="flex flex-wrap items-center gap-6 lg:gap-8">
-            {/* Number of Habits */}
             <div className="text-center lg:text-left">
               <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
                 Number of Habits
@@ -311,7 +347,6 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
               </span>
             </div>
 
-            {/* Completed Habits Today */}
             <div className="text-center lg:text-left">
               <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
                 Today's Done
@@ -324,7 +359,6 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
               </div>
             </div>
 
-            {/* Month Total Done */}
             <div className="text-center lg:text-left">
               <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
                 Month Total
@@ -334,7 +368,6 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
               </span>
             </div>
 
-            {/* Overall Progress Bar */}
             <div className="min-w-[180px] flex-1 lg:flex-initial">
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="font-semibold text-muted uppercase tracking-wider text-[11px]">
@@ -352,74 +385,21 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
               </div>
             </div>
 
-            {/* Add Habit Action */}
+            {/* Manage Habits Trigger Button */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setIsAdding(true)}
-              className="h-10 px-4 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs flex items-center gap-2 shadow-glow hover:opacity-90 transition-all"
+              onClick={() => setModalOpen(true)}
+              className="h-10 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-void-950 font-semibold text-xs flex items-center gap-2 shadow-glow hover:opacity-90 transition-all"
             >
-              <Plus size={16} />
-              <span>Add Habit</span>
+              <Settings2 size={16} />
+              <span>Edit Habits</span>
             </motion.button>
           </div>
         </div>
       </GlassPanel>
 
-      {/* Inline Add Habit Modal / Drawer */}
-      <AnimatePresence>
-        {isAdding && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-          >
-            <GlassPanel className="p-4 border border-violet-500/30 shadow-glow">
-              <form onSubmit={handleAddHabit} className="flex flex-col sm:flex-row items-center gap-3">
-                <div className="w-16">
-                  <label className="text-[10px] text-muted block mb-1">Emoji</label>
-                  <input
-                    type="text"
-                    value={newEmoji}
-                    onChange={(e) => setNewEmoji(e.target.value)}
-                    className="w-full text-center text-lg bg-white/[0.03] border border-white/[0.08] rounded-xl px-2 py-2 text-silver focus:outline-none focus:border-violet-400"
-                    maxLength={3}
-                  />
-                </div>
-                <div className="flex-1 w-full">
-                  <label className="text-[10px] text-muted block mb-1">Habit / Daily Task Title</label>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    placeholder="e.g. Morning 30-min Cardio, Code Review, No Sugar..."
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm text-silver focus:outline-none focus:border-violet-400"
-                  />
-                </div>
-                <div className="flex items-center gap-2 mt-4 sm:mt-5 self-end sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setIsAdding(false)}
-                    className="px-4 py-2.5 rounded-xl text-xs text-muted hover:text-silver bg-white/[0.02] hover:bg-white/[0.06] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 font-semibold text-xs shadow-glow"
-                  >
-                    Save Habit
-                  </button>
-                </div>
-              </form>
-            </GlassPanel>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main Habit Matrix Table */}
+      {/* Main Habit Matrix Table (CLEAN VIEW-ONLY HABIT COLUMN, INTERACTIVE TODAY COLUMN) */}
       <GlassPanel className="p-0 border border-white/[0.08] shadow-glass overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full border-collapse text-left">
@@ -453,7 +433,7 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
                     key={day.dateKey}
                     className={`text-center px-1.5 py-2 min-w-[36px] max-w-[42px] border-r border-white/[0.04] transition-colors ${
                       day.isToday
-                        ? 'bg-cyan-500/20 text-cyan-300 font-bold border-cyan-500/40'
+                        ? 'bg-cyan-500/20 text-cyan-300 font-bold border-cyan-500/40 shadow-glow'
                         : day.isWeekend
                         ? 'text-purple-400/60 bg-white/[0.005]'
                         : 'text-silver/70'
@@ -476,96 +456,68 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
               {habits.length === 0 ? (
                 <tr>
                   <td colSpan={daysArray.length + 1} className="py-12 text-center text-xs text-muted">
-                    No habits created yet. Click "+ Add Habit" to start tracking!
+                    No habits added yet. Click "Edit Habits" to configure your daily routines!
                   </td>
                 </tr>
               ) : (
                 habits.map((habit, hIdx) => (
                   <tr
                     key={habit.id}
-                    className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors group ${
+                    className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${
                       hIdx % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.005]'
                     }`}
                   >
-                    {/* Sticky Habit Label Column */}
+                    {/* Clean Habit Label Column (No in-cell editing, managed via Daily Task modal) */}
                     <td className="sticky left-0 z-10 bg-void-950/95 backdrop-blur-md px-4 py-2.5 border-r border-white/[0.08]">
-                      {editingId === habit.id ? (
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            value={editEmoji}
-                            onChange={(e) => setEditEmoji(e.target.value)}
-                            className="w-8 text-center text-sm bg-white/10 rounded px-1 py-0.5 text-silver"
-                            maxLength={2}
-                          />
-                          <input
-                            type="text"
-                            value={editTitle}
-                            onChange={(e) => setEditTitle(e.target.value)}
-                            className="flex-1 text-xs bg-white/10 rounded px-2 py-0.5 text-silver focus:outline-none focus:border-cyan-400"
-                            autoFocus
-                          />
-                          <button
-                            onClick={() => handleSaveEdit(habit.id)}
-                            className="p-1 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40"
-                          >
-                            <Check size={12} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between group/row">
-                          <div className="flex items-center gap-2 truncate pr-2" title={habit.title}>
-                            <span className="text-base">{habit.emoji || '✨'}</span>
-                            <span className="text-xs font-medium text-silver truncate">
-                              {habit.title}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleStartEdit(habit)}
-                              className="p-1 rounded hover:bg-white/10 text-muted hover:text-cyan-300 transition-colors"
-                              title="Edit habit"
-                            >
-                              <Edit2 size={12} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteHabit(habit.id)}
-                              className="p-1 rounded hover:bg-white/10 text-muted hover:text-rose-400 transition-colors"
-                              title="Delete habit"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 truncate" title={habit.title}>
+                        <span className="text-base flex-shrink-0">{habit.emoji || '✨'}</span>
+                        <span className="text-xs font-medium text-silver truncate">
+                          {habit.title}
+                        </span>
+                      </div>
                     </td>
 
-                    {/* Checkbox Columns for each day */}
+                    {/* Checkbox Columns for each day (Today: Real-time interactive, Past/Future: Locked) */}
                     {daysArray.map((day) => {
                       const isChecked = !!checkMap[day.dateKey]?.[habit.id]
                       return (
                         <td
                           key={day.dateKey}
-                          onClick={() => handleToggleCheck(habit.id, day.dateKey)}
-                          className={`text-center p-1 border-r border-white/[0.03] cursor-pointer transition-colors ${
+                          onClick={() => handleToggleCheck(habit.id, day)}
+                          className={`text-center p-1 border-r border-white/[0.03] transition-colors select-none ${
                             day.isToday
-                              ? 'bg-cyan-500/[0.04]'
-                              : isChecked
-                              ? 'hover:bg-emerald-500/10'
-                              : 'hover:bg-white/[0.03]'
+                              ? 'bg-cyan-500/[0.08] cursor-pointer hover:bg-cyan-500/20'
+                              : day.isPast
+                              ? 'opacity-80 cursor-not-allowed bg-black/10'
+                              : 'opacity-30 cursor-not-allowed bg-black/20'
                           }`}
                         >
-                          <div className="flex items-center justify-center">
+                          <div className="flex items-center justify-center relative group/cell">
                             <button
                               type="button"
+                              disabled={day.isLocked}
                               className={`h-5 w-5 rounded-md border flex items-center justify-center transition-all ${
                                 isChecked
-                                  ? 'bg-gradient-to-br from-emerald-500 to-cyan-500 border-emerald-400 text-void-950 shadow-glow scale-105'
-                                  : 'border-white/[0.15] bg-white/[0.02] hover:border-violet-400/60'
+                                  ? day.isToday
+                                    ? 'bg-gradient-to-br from-emerald-500 to-cyan-500 border-emerald-400 text-void-950 shadow-glow scale-105'
+                                    : 'bg-emerald-500/40 border-emerald-500/50 text-emerald-300'
+                                  : day.isToday
+                                  ? 'border-cyan-400/60 bg-white/[0.03] hover:border-cyan-300 shadow-glow'
+                                  : 'border-white/[0.08] bg-transparent'
                               }`}
-                              title={`${habit.title} on ${day.dayOfWeek}, ${day.dayNum} ${MONTH_NAMES[month]}`}
+                              title={
+                                day.isToday
+                                  ? `Click to toggle ${habit.title} for Today`
+                                  : day.isPast
+                                  ? `${habit.title} on ${day.dayNum} ${MONTH_NAMES[month]} (Past record locked)`
+                                  : `${habit.title} on ${day.dayNum} ${MONTH_NAMES[month]} (Future date locked)`
+                              }
                             >
-                              {isChecked && <Check size={13} strokeWidth={3.5} />}
+                              {isChecked ? (
+                                <Check size={13} strokeWidth={3.5} />
+                              ) : day.isLocked ? (
+                                <span className="w-1 h-1 rounded-full bg-white/10" />
+                              ) : null}
                             </button>
                           </div>
                         </td>
@@ -598,8 +550,8 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
                             ? 'text-cyan-300'
                             : pct > 0
                             ? 'text-purple-300'
-                            : 'text-muted/40'
-                        } ${day.isToday ? 'bg-cyan-500/[0.08]' : ''}`}
+                            : 'text-muted/30'
+                        } ${day.isToday ? 'bg-cyan-500/[0.12] text-cyan-300 font-extrabold' : ''}`}
                       >
                         {pct}%
                       </td>
@@ -619,8 +571,8 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
                       <td
                         key={day.dateKey}
                         className={`text-center py-1.5 px-0.5 border-r border-white/[0.03] text-[10px] font-mono font-bold ${
-                          done > 0 ? 'text-emerald-400' : 'text-muted/40'
-                        } ${day.isToday ? 'bg-cyan-500/[0.08]' : ''}`}
+                          done > 0 ? 'text-emerald-400' : 'text-muted/30'
+                        } ${day.isToday ? 'bg-cyan-500/[0.12]' : ''}`}
                       >
                         {done}
                       </td>
@@ -641,8 +593,8 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
                       <td
                         key={day.dateKey}
                         className={`text-center py-1.5 px-0.5 border-r border-white/[0.03] text-[10px] font-mono font-medium ${
-                          notDone === 0 ? 'text-muted/30' : 'text-rose-400/80'
-                        } ${day.isToday ? 'bg-cyan-500/[0.08]' : ''}`}
+                          notDone === 0 ? 'text-muted/20' : 'text-rose-400/80'
+                        } ${day.isToday ? 'bg-cyan-500/[0.12]' : ''}`}
                       >
                         {notDone}
                       </td>
@@ -654,6 +606,167 @@ export default function DailyHabitTracker({ onClose }: DailyHabitTrackerProps) {
           </table>
         </div>
       </GlassPanel>
+
+      {/* ===== DAILY HABIT & TASK MANAGER MODAL ===== */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel w-full max-w-xl p-6 border border-cyan-500/30 shadow-glow relative max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/[0.06]">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-display font-semibold text-silver">
+                      Manage Daily Habits & Tasks
+                    </h3>
+                    <p className="text-xs text-muted">
+                      Add, edit, or remove recurring habits tracked in your real-time Daily Matrix.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="p-1.5 rounded-lg text-muted hover:text-silver hover:bg-white/[0.06] transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Add New Habit Section */}
+              <form onSubmit={handleAddHabit} className="py-4 border-b border-white/[0.06] flex items-center gap-3">
+                <div className="w-14">
+                  <label className="text-[10px] text-muted block mb-1">Emoji</label>
+                  <input
+                    type="text"
+                    value={newEmoji}
+                    onChange={(e) => setNewEmoji(e.target.value)}
+                    className="w-full text-center text-base bg-white/[0.03] border border-white/[0.08] rounded-xl px-1 py-2 text-silver focus:outline-none focus:border-cyan-400"
+                    maxLength={3}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-[10px] text-muted block mb-1">New Habit / Daily Routine</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Morning 30-min Cardio, Code Review..."
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-silver focus:outline-none focus:border-cyan-400 placeholder:text-muted/60"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="mt-4 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-void-950 font-semibold text-xs shadow-glow flex items-center gap-1.5 self-end hover:opacity-90 transition-all"
+                >
+                  <Plus size={14} />
+                  <span>Add</span>
+                </button>
+              </form>
+
+              {/* Habit List Management (Edit / Delete) */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar py-3 space-y-2 pr-1">
+                <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block mb-2">
+                  Existing Habits ({habits.length})
+                </span>
+
+                {habits.length === 0 ? (
+                  <p className="text-xs text-muted py-6 text-center">No habits added yet.</p>
+                ) : (
+                  habits.map((habit) => (
+                    <div
+                      key={habit.id}
+                      className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-cyan-500/30 transition-all"
+                    >
+                      {editingId === habit.id ? (
+                        <div className="flex items-center gap-2 flex-1 mr-2">
+                          <input
+                            type="text"
+                            value={editEmoji}
+                            onChange={(e) => setEditEmoji(e.target.value)}
+                            className="w-10 text-center text-sm bg-white/10 rounded-lg px-1 py-1 text-silver border border-white/20"
+                            maxLength={3}
+                          />
+                          <input
+                            type="text"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            className="flex-1 text-xs bg-white/10 rounded-lg px-3 py-1.5 text-silver focus:outline-none focus:border-cyan-400 border border-white/20"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(habit.id)}
+                            className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors"
+                            title="Save changes"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            className="p-1.5 rounded-lg bg-white/10 text-muted hover:text-silver transition-colors"
+                            title="Cancel"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 truncate pr-3">
+                            <span className="text-lg">{habit.emoji || '✨'}</span>
+                            <span className="text-xs font-medium text-silver truncate">
+                              {habit.title}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(habit)}
+                              className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-cyan-300 transition-colors"
+                              title="Edit habit"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteHabit(habit.id)}
+                              className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-rose-400 transition-colors"
+                              title="Delete habit"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-3 border-t border-white/[0.06] flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="px-5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-silver font-medium text-xs transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

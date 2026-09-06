@@ -84,8 +84,11 @@ export default function Tasks() {
 
   const completedCount = tasks.filter((t) => t.completed).length
 
+  const [isManageHabitsOpen, setIsManageHabitsOpen] = useState(false)
+
   const handleOpenDailyTask = () => {
     setPageMode('daily')
+    setIsManageHabitsOpen(true)
   }
 
   return (
@@ -164,7 +167,10 @@ export default function Tasks() {
       </div>
 
       {pageMode === 'daily' ? (
-        <DailyHabitTracker />
+        <DailyHabitTracker
+          isManageOpen={isManageHabitsOpen}
+          setIsManageOpen={setIsManageHabitsOpen}
+        />
       ) : (
         <>
           <AnimatePresence>
