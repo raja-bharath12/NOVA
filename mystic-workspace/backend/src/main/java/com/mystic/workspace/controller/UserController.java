@@ -20,11 +20,17 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final PresenceService presenceService;
+    private final com.mystic.workspace.service.AuthService authService;
 
     @GetMapping("/me")
     public UserDto getCurrentUser(@AuthenticationPrincipal UserPrincipal principal) {
         User user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
+
+        if (user.getUserTag() == null || user.getUserTag().isBlank() || user.getUserTag().contains("DEMO") || user.getUserTag().contains("TEST")) {
+            user.setUserTag(authService.generateUniqueUserTag());
+            user = userRepository.save(user);
+        }
 
         return UserDto.builder()
                 .id(user.getId())

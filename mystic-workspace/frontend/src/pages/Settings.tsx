@@ -49,7 +49,7 @@ export default function Settings() {
               <div className="mt-2 flex items-center gap-2">
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium bg-cyan-500/10 text-cyan-300 border border-cyan-400/20">
                   <Hash size={11} />
-                  {user?.userTag || 'MYST-DEMO01'}
+                  {user?.userTag || 'Loading ID...'}
                 </span>
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-400/20">
                   <Shield size={10} /> Active
@@ -67,7 +67,7 @@ export default function Settings() {
                 Your Unique 10-Char Chat ID
               </span>
               <p className="font-mono text-base font-bold text-silver tracking-wider">
-                {user?.userTag || 'MYST-DEMO01'}
+                {user?.userTag || 'Loading ID...'}
               </p>
               <p className="text-[11px] text-muted mt-1">
                 Share this unique ID with teammates so they can connect with you directly.
@@ -76,7 +76,8 @@ export default function Settings() {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={copyTag}
-              className="w-full py-2 px-3 rounded-lg bg-white/[0.04] hover:bg-violet-600/30 text-silver hover:text-cyan-300 border border-white/[0.08] hover:border-violet-400/40 text-xs font-medium flex items-center justify-center gap-1.5 transition-all shadow-glow"
+              disabled={!user?.userTag}
+              className="w-full py-2 px-3 rounded-lg bg-white/[0.04] hover:bg-violet-600/30 text-silver hover:text-cyan-300 border border-white/[0.08] hover:border-violet-400/40 text-xs font-medium flex items-center justify-center gap-1.5 transition-all shadow-glow disabled:opacity-40"
             >
               {copiedTag ? <Check size={14} className="text-cyan-400" /> : <Copy size={14} />}
               <span>{copiedTag ? 'Copied ID!' : 'Copy Chat ID'}</span>
@@ -89,7 +90,7 @@ export default function Settings() {
                 1-Click Direct Chat Invite Link
               </span>
               <p className="font-mono text-xs text-silver truncate bg-void-950/60 p-2 rounded-lg border border-white/[0.06]">
-                {directChatLink || 'https://workspace.app/chat/u/MYST-DEMO01'}
+                {directChatLink || (user?.userTag ? `${window.location.origin}/chat/u/${user.userTag}` : 'Generating Link...')}
               </p>
               <p className="text-[11px] text-muted mt-1">
                 Anyone clicking this URL will automatically open a private direct chat with you.
@@ -98,7 +99,8 @@ export default function Settings() {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={copyLink}
-              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-glow"
+              disabled={!directChatLink}
+              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-violet-500 to-cyan-500 text-void-950 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-glow disabled:opacity-40"
             >
               {copiedLink ? <Check size={14} /> : <LinkIcon size={14} />}
               <span>{copiedLink ? 'Copied Invite Link!' : 'Copy Direct Chat Link'}</span>

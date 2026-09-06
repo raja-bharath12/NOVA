@@ -31,8 +31,8 @@ public class AuthService {
 
     public String generateUniqueUserTag() {
         while (true) {
-            StringBuilder sb = new StringBuilder("MYST-");
-            for (int i = 0; i < 6; i++) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 10; i++) {
                 sb.append(TAG_CHARS.charAt(RANDOM.nextInt(TAG_CHARS.length())));
             }
             String tag = sb.toString();
@@ -77,8 +77,8 @@ public class AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
 
-        // If existing user has no tag yet, assign one on login
-        if (user.getUserTag() == null || user.getUserTag().isBlank()) {
+        // If existing user has no tag yet or has old demo tag, assign a real 10-character tag on login
+        if (user.getUserTag() == null || user.getUserTag().isBlank() || user.getUserTag().contains("DEMO") || user.getUserTag().contains("TEST")) {
             user.setUserTag(generateUniqueUserTag());
             user = userRepository.save(user);
         }

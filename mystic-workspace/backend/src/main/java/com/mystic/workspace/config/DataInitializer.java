@@ -22,26 +22,24 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        seedUserIfNotExists("demo@mystic.com", "Nova User", "password123", "MYST-DEMO01");
-        seedUserIfNotExists("test@mystic.com", "Collaborator User", "password123", "MYST-TEST02");
+        seedUserIfNotExists("demo@mystic.com", "Nova User", "password123");
+        seedUserIfNotExists("test@mystic.com", "Collaborator User", "password123");
 
-        // Backfill tags for any existing users with null/empty tags
-        List<User> usersWithoutTag = userRepository.findAll().stream()
-                .filter(u -> u.getUserTag() == null || u.getUserTag().isBlank())
+        // Backfill real 10-character tags for any existing users with null, empty, or legacy DEMO/TEST tags
+        List<User> usersNeedingTag = userRepository.findAll().stream()
+                .filter(u -> u.getUserTag() == null || u.getUserTag().isBlank() || u.getUserTag().contains("DEMO") || u.getUserTag().contains("TEST"))
                 .toList();
 
-        for (User user : usersWithoutTag) {
+        for (User user : usersNeedingTag) {
             user.setUserTag(authService.generateUniqueUserTag());
             userRepository.save(user);
-            log.info("Assigned unique userTag {} to user {}", user.getUserTag(), user.getEmail());
+            log.info("Assigned real unique 10-char userTag {} to user {}", user.getUserTag(), user.getEmail());
         }
     }
 
-    private void seedUserIfNotExists(String email, String name, String rawPassword, String defaultTag) {
+    private void seedUserIfNotExists(String email, String name, String rawPassword) {
         if (!userRepository.existsByEmail(email)) {
-            String tag = (defaultTag != null && !userRepository.existsByUserTag(defaultTag))
-                    ? defaultTag
-                    : authService.generateUniqueUserTag();
+            String tag = authService.generateUniqueUserTag();
             User user = User.builder()
                     .email(email)
                     .name(name)
@@ -49,7 +47,7 @@ public class DataInitializer implements CommandLineRunner {
                     .userTag(tag)
                     .build();
             userRepository.save(user);
-            log.info("Seeded default test user: {} (Tag: {}, Password: {})", email, tag, rawPassword);
+            log.info("Seeded user: {} (Tag: {}, Password: {})", email, tag, rawPassword);
         }
     }
 }

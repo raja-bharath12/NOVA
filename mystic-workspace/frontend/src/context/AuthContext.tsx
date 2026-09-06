@@ -17,8 +17,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setUser(authService.getStoredUser())
+    const stored = authService.getStoredUser()
+    setUser(stored)
     setLoading(false)
+
+    // Automatically sync real 10-char userTag from backend if authenticated
+    if (localStorage.getItem('mystic_token')) {
+      authService.fetchCurrentUserProfile()
+        .then((fresh) => {
+          if (fresh) setUser(fresh)
+        })
+        .catch(() => {})
+    }
   }, [])
 
   async function login(email: string, password: string) {
