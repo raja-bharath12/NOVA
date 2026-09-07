@@ -23,6 +23,7 @@ public class WhiteboardOpDto {
         CURSOR_MOVE
     }
 
+    private String id;
     private Type type;
     private Long boardId;
     private String roomCode;
@@ -34,10 +35,12 @@ public class WhiteboardOpDto {
     private String tool; // pen, line, rect, circle, arrow, text, eraser
     private String color;
     private Integer strokeWidth;
+    private Integer fontSize;
     private Double x;
     private Double y;
     private Double endX;
     private Double endY;
     private String text;
     private Object points; // List of {x, y} for smooth brush paths
+    private String timestamp;
 }

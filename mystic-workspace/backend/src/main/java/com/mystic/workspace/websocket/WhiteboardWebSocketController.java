@@ -22,13 +22,23 @@ public class WhiteboardWebSocketController {
     private final SimpMessagingTemplate messagingTemplate;
     private final UserRepository userRepository;
 
-    @MessageMapping("/whiteboard.op")
-    public void handleWhiteboardOp(@Payload WhiteboardOpDto op, Principal principal) {
+    @MessageMapping({"/whiteboard.op", "/whiteboard.{boardId}.draw", "/meeting.{roomCode}.whiteboard.draw"})
+    public void handleWhiteboardOp(
+            @Payload WhiteboardOpDto op,
+            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "boardId", required = false) Long pathBoardId,
+            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "roomCode", required = false) String pathRoomCode,
+            Principal principal
+    ) {
         User user = extractUser(principal);
-        if (user == null || (op.getBoardId() == null && op.getRoomCode() == null)) return;
+        if (pathBoardId != null) op.setBoardId(pathBoardId);
+        if (pathRoomCode != null) op.setRoomCode(pathRoomCode);
 
-        op.setUserId(user.getId());
-        op.setUserName(user.getName());
+        if (op.getBoardId() == null && op.getRoomCode() == null) return;
+
+        if (user != null) {
+            op.setUserId(user.getId());
+            op.setUserName(user.getName());
+        }
 
         String destination = op.getBoardId() != null
                 ? "/topic/whiteboard." + op.getBoardId() + ".ops"
@@ -41,14 +51,24 @@ public class WhiteboardWebSocketController {
         }
     }
 
-    @MessageMapping("/whiteboard.cursor")
-    public void handleWhiteboardCursor(@Payload WhiteboardOpDto cursor, Principal principal) {
+    @MessageMapping({"/whiteboard.cursor", "/whiteboard.{boardId}.cursor", "/meeting.{roomCode}.whiteboard.cursor"})
+    public void handleWhiteboardCursor(
+            @Payload WhiteboardOpDto cursor,
+            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "boardId", required = false) Long pathBoardId,
+            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "roomCode", required = false) String pathRoomCode,
+            Principal principal
+    ) {
         User user = extractUser(principal);
-        if (user == null || (cursor.getBoardId() == null && cursor.getRoomCode() == null)) return;
+        if (pathBoardId != null) cursor.setBoardId(pathBoardId);
+        if (pathRoomCode != null) cursor.setRoomCode(pathRoomCode);
+
+        if (cursor.getBoardId() == null && cursor.getRoomCode() == null) return;
 
         cursor.setType(WhiteboardOpDto.Type.CURSOR_MOVE);
-        cursor.setUserId(user.getId());
-        cursor.setUserName(user.getName());
+        if (user != null) {
+            cursor.setUserId(user.getId());
+            cursor.setUserName(user.getName());
+        }
 
         String destination = cursor.getBoardId() != null
                 ? "/topic/whiteboard." + cursor.getBoardId() + ".cursors"

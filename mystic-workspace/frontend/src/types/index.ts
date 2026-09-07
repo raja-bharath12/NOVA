@@ -120,7 +120,23 @@ export interface CallSignal {
 }
 
 export interface MeetingSignal {
-  type: 'JOIN' | 'LEAVE' | 'OFFER' | 'ANSWER' | 'ICE_CANDIDATE' | 'SCREEN_SHARE_START' | 'SCREEN_SHARE_STOP' | 'HAND_RAISE' | 'CHAT_MESSAGE'
+  type:
+    | 'JOIN'
+    | 'LEAVE'
+    | 'OFFER'
+    | 'ANSWER'
+    | 'ICE_CANDIDATE'
+    | 'SCREEN_SHARE_START'
+    | 'SCREEN_SHARE_STOP'
+    | 'HAND_RAISE'
+    | 'CHAT_MESSAGE'
+    | 'WHITEBOARD_OPEN'
+    | 'WHITEBOARD_CLOSE'
+    | 'WHITEBOARD_REQUEST_ACCESS'
+    | 'WHITEBOARD_GRANT_ACCESS'
+    | 'WHITEBOARD_REVOKE_ACCESS'
+    | 'WHITEBOARD_DENY_ACCESS'
+    | 'WHITEBOARD_SYNC'
   roomCode: string
   senderId: number
   senderName: string
@@ -129,6 +145,8 @@ export interface MeetingSignal {
   candidate?: any
   isScreenSharing?: boolean
   isHandRaised?: boolean
+  isWhiteboardOpen?: boolean
+  allowedUserIds?: number[]
   chatContent?: string
   timestamp?: string
 }

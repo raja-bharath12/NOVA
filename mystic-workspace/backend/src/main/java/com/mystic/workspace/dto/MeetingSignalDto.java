@@ -21,7 +21,14 @@ public class MeetingSignalDto {
         SCREEN_SHARE_START,
         SCREEN_SHARE_STOP,
         HAND_RAISE,
-        CHAT_MESSAGE
+        CHAT_MESSAGE,
+        WHITEBOARD_OPEN,
+        WHITEBOARD_CLOSE,
+        WHITEBOARD_REQUEST_ACCESS,
+        WHITEBOARD_GRANT_ACCESS,
+        WHITEBOARD_REVOKE_ACCESS,
+        WHITEBOARD_DENY_ACCESS,
+        WHITEBOARD_SYNC
     }
 
     private Type type;
@@ -33,6 +40,8 @@ public class MeetingSignalDto {
     private Object candidate;
     private boolean isScreenSharing;
     private boolean isHandRaised;
+    private boolean isWhiteboardOpen;
+    private java.util.List<Long> allowedUserIds;
     private String chatContent;
     @Builder.Default
     private Instant timestamp = Instant.now();
