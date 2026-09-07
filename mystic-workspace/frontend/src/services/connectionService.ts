@@ -4,17 +4,17 @@ import type { User, UserConnection } from '../types'
 export const connectionService = {
   async searchUsers(query?: string): Promise<User[]> {
     const params = query ? { query } : {}
-    const res = await api.get<User[]>('/api/connections/users', { params })
+    const res = await api.get<User[]>('/connections/users', { params })
     return res.data
   },
 
   async getAccepted(): Promise<UserConnection[]> {
-    const res = await api.get<UserConnection[]>('/api/connections')
+    const res = await api.get<UserConnection[]>('/connections')
     return res.data
   },
 
   async getPendingIncoming(): Promise<UserConnection[]> {
-    const res = await api.get<UserConnection[]>('/api/connections/pending')
+    const res = await api.get<UserConnection[]>('/connections/pending')
     return res.data
   },
 
@@ -23,22 +23,23 @@ export const connectionService = {
   },
 
   async getPendingSent(): Promise<UserConnection[]> {
-    const res = await api.get<UserConnection[]>('/api/connections/sent')
+    const res = await api.get<UserConnection[]>('/connections/sent')
     return res.data
   },
 
   async sendRequest(targetUserId: number): Promise<UserConnection> {
-    const res = await api.post<UserConnection>(`/api/connections/request/${targetUserId}`)
+    const res = await api.post<UserConnection>(`/connections/request/${targetUserId}`)
     return res.data
   },
 
   async sendRequestByTag(userTag: string): Promise<UserConnection> {
-    const res = await api.post<UserConnection>(`/api/connections/request/tag/${userTag}`)
+    const clean = encodeURIComponent((userTag || '').replace(/^[#@\s]+/, '').replace(/[#@\s]+$/, '').trim().toUpperCase())
+    const res = await api.post<UserConnection>(`/connections/request/tag/${clean}`)
     return res.data
   },
 
   async accept(connectionId: number): Promise<UserConnection> {
-    const res = await api.post<UserConnection>(`/api/connections/${connectionId}/accept`)
+    const res = await api.post<UserConnection>(`/connections/${connectionId}/accept`)
     return res.data
   },
 
@@ -47,7 +48,7 @@ export const connectionService = {
   },
 
   async decline(connectionId: number): Promise<UserConnection> {
-    const res = await api.post<UserConnection>(`/api/connections/${connectionId}/decline`)
+    const res = await api.post<UserConnection>(`/connections/${connectionId}/decline`)
     return res.data
   },
 
@@ -56,7 +57,7 @@ export const connectionService = {
   },
 
   async remove(connectionId: number): Promise<void> {
-    await api.delete(`/api/connections/${connectionId}`)
+    await api.delete(`/connections/${connectionId}`)
   },
 }
 

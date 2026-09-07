@@ -393,20 +393,23 @@ export default function Chat() {
   }
 
   async function handleLookupTag(rawInput: string) {
-    const trimmed = rawInput.trim()
+    const trimmed = (rawInput || '').trim()
     setTagInput(trimmed)
     setTagError(null)
     setLookedUpUser(null)
 
     if (!trimmed) return
 
-    // Extract tag if a full URL is pasted
+    // Extract tag if a full URL, #, @, or space is pasted/typed
     let tag = trimmed
     if (trimmed.includes('/chat/u/')) {
-      tag = trimmed.split('/chat/u/')[1].split('?')[0].split('/')[0]
+      const parts = trimmed.split('/chat/u/')
+      tag = parts[parts.length - 1].split('?')[0].split('/')[0]
     }
 
-    tag = tag.toUpperCase().replace(/^@/, '')
+    tag = tag.replace(/^[#@\s]+/, '').replace(/[#@\s]+$/, '').trim().toUpperCase()
+
+    if (!tag) return
 
     if (effectiveTag && tag === effectiveTag.toUpperCase()) {
       setTagError('This is your own Chat ID!')
@@ -416,10 +419,14 @@ export default function Chat() {
     try {
       setTagSearching(true)
       const foundUser = await chatService.lookupUserByTag(tag)
-      // Check connection status for looked up user
-      const users = await connectionService.searchUsers(foundUser.userTag || foundUser.email)
-      const matched = users.find((u) => u.id === foundUser.id)
-      setLookedUpUser(matched || foundUser)
+      // Check connection status for looked up user safely
+      try {
+        const users = await connectionService.searchUsers(foundUser.userTag || foundUser.email)
+        const matched = users.find((u) => u.id === foundUser.id)
+        setLookedUpUser(matched || foundUser)
+      } catch {
+        setLookedUpUser(foundUser)
+      }
     } catch (err: any) {
       setTagError('No active user found with ID: ' + tag)
     } finally {

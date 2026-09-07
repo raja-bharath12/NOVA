@@ -264,7 +264,11 @@ public class ConversationService {
         if (cleaned.contains("/chat/u/")) {
             cleaned = cleaned.substring(cleaned.lastIndexOf("/chat/u/") + 8);
         }
-        cleaned = cleaned.replaceAll("^[#@]+", "").split("[/?#]")[0].trim();
+        cleaned = cleaned.replaceAll("^[#@\\s]+", "").replaceAll("[#@\\s]+$", "").split("[/?#]")[0].trim();
+        try {
+            cleaned = java.net.URLDecoder.decode(cleaned, java.nio.charset.StandardCharsets.UTF_8).trim();
+            cleaned = cleaned.replaceAll("^[#@\\s]+", "").replaceAll("[#@\\s]+$", "").trim();
+        } catch (Exception ignored) {}
 
         if (cleaned.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user identifier");
@@ -328,18 +332,17 @@ public class ConversationService {
     private String computeDeterministicTag(Long id, String email) {
         if (id == null && (email == null || email.isBlank())) return "";
         String seed = (id != null ? id : 1) + "_" + (email != null ? email : "bharath") + "_nova_workspace";
-        long hash = 5381;
+        int hash = 5381;
         for (int i = 0; i < seed.length(); i++) {
             hash = ((hash << 5) + hash) + seed.charAt(i);
-            hash = hash & 0xFFFFFFFFL;
         }
-        long current = Math.abs(hash);
+        int current = Math.abs(hash);
         String tagChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 10; i++) {
-            int idx = (int) ((current + i * 13 + i * i * 7) % tagChars.length());
+            int idx = (int) ((current + i * 13L + i * i * 7L) % tagChars.length());
             sb.append(tagChars.charAt(idx));
-            current = (current * 1664525L + 1013904223L) & 0x7FFFFFFFL;
+            current = (int) (((long) current * 1664525L + 1013904223L) % 2147483647L);
         }
         return sb.toString();
     }
