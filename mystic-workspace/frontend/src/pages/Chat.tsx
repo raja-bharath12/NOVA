@@ -121,10 +121,10 @@ export default function Chat() {
       const conv = await chatService.createDirectConversationByTag(tag)
       setConversations((prev) => [conv, ...prev.filter((c) => c.id !== conv.id)])
       setSelectedConversation(conv)
-      showToast(`Connected to ${conv.title}!`, 'success')
+      showToast(`Connected with ${conv.title}!`, 'success')
       navigate('/chat', { replace: true })
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Could not find user with that ID.'
+      const msg = err?.response?.data?.message || err?.message || 'Could not find user with that ID or Link.'
       showToast(msg, 'warning')
     }
   }

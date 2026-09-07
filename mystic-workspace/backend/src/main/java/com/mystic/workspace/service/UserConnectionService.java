@@ -27,6 +27,7 @@ public class UserConnectionService {
     private final UserRepository userRepository;
     private final PresenceService presenceService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ConversationService conversationService;
 
     @Transactional
     public ConnectionDto sendConnectionRequest(User currentUser, Long targetUserId) {
@@ -79,14 +80,7 @@ public class UserConnectionService {
 
     @Transactional
     public ConnectionDto sendConnectionRequestByTag(User currentUser, String userTag) {
-        if (userTag == null || userTag.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User Tag is required");
-        }
-
-        String normalizedTag = userTag.trim().toUpperCase();
-        User recipient = userRepository.findByUserTagIgnoreCase(normalizedTag)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No user found with Chat ID: " + userTag.trim()));
-
+        User recipient = conversationService.resolveUser(userTag);
         return sendConnectionRequest(currentUser, recipient.getId());
     }
 

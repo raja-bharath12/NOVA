@@ -26,6 +26,7 @@ public class ConversationService {
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final PresenceService presenceService;
+    private final AuthService authService;
 
     @Transactional(readOnly = true)
     public List<ConversationDto> getUserConversations(User currentUser) {
@@ -198,13 +199,7 @@ public class ConversationService {
 
     @Transactional
     public ConversationDto createOrGetDirectByTag(User currentUser, String userTag) {
-        if (userTag == null || userTag.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User Tag is required");
-        }
-
-        String normalizedTag = userTag.trim().toUpperCase();
-        User recipient = userRepository.findByUserTagIgnoreCase(normalizedTag)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No user found with ID: " + userTag.trim()));
+        User recipient = resolveUser(userTag);
 
         if (recipient.getId().equals(currentUser.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot start a direct conversation with yourself");
@@ -246,15 +241,9 @@ public class ConversationService {
         return toDto(saved, currentUser);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public UserDto lookupUserByTag(User currentUser, String userTag) {
-        if (userTag == null || userTag.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User Tag is required");
-        }
-
-        String normalizedTag = userTag.trim().toUpperCase();
-        User user = userRepository.findByUserTagIgnoreCase(normalizedTag)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No user found with tag: " + userTag.trim()));
+        User user = resolveUser(userTag);
 
         return UserDto.builder()
                 .id(user.getId())
@@ -263,6 +252,96 @@ public class ConversationService {
                 .userTag(user.getUserTag())
                 .status(presenceService.getUserStatus(user.getId()))
                 .build();
+    }
+
+    public User resolveUser(String rawIdentifier) {
+        if (rawIdentifier == null || rawIdentifier.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User ID, Chat Tag, or Email is required");
+        }
+
+        String cleaned = rawIdentifier.trim();
+        // If full URL was pasted, extract the tag
+        if (cleaned.contains("/chat/u/")) {
+            cleaned = cleaned.substring(cleaned.lastIndexOf("/chat/u/") + 8);
+        }
+        cleaned = cleaned.replaceAll("^[#@]+", "").split("[/?#]")[0].trim();
+
+        if (cleaned.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user identifier");
+        }
+
+        // 1. Direct match on userTag (case-insensitive)
+        Optional<User> byTag = userRepository.findByUserTagIgnoreCase(cleaned);
+        if (byTag.isPresent()) return byTag.get();
+
+        // 2. Direct match on email (case-insensitive)
+        Optional<User> byEmail = userRepository.findByEmail(cleaned.toLowerCase());
+        if (byEmail.isPresent()) {
+            User u = byEmail.get();
+            if (u.getUserTag() == null || u.getUserTag().isBlank()) {
+                u.setUserTag(authService.generateUniqueUserTag());
+                u = userRepository.save(u);
+            }
+            return u;
+        }
+
+        // 3. Numeric user ID match
+        try {
+            Long userId = Long.parseLong(cleaned);
+            Optional<User> byId = userRepository.findById(userId);
+            if (byId.isPresent()) {
+                User u = byId.get();
+                if (u.getUserTag() == null || u.getUserTag().isBlank()) {
+                    u.setUserTag(authService.generateUniqueUserTag());
+                    u = userRepository.save(u);
+                }
+                return u;
+            }
+        } catch (NumberFormatException ignored) {}
+
+        // 4. Fallback search across all users (handling fallback hash tags generated client-side)
+        List<User> allUsers = userRepository.findAll();
+        for (User u : allUsers) {
+            String fallbackTag = computeDeterministicTag(u.getId(), u.getEmail());
+            if (fallbackTag.equalsIgnoreCase(cleaned)) {
+                u.setUserTag(fallbackTag);
+                return userRepository.save(u);
+            }
+        }
+
+        // 5. Name match fallback (if unique match)
+        List<User> nameMatches = allUsers.stream()
+                .filter(u -> u.getName() != null && u.getName().equalsIgnoreCase(cleaned))
+                .toList();
+        if (nameMatches.size() == 1) {
+            User u = nameMatches.get(0);
+            if (u.getUserTag() == null || u.getUserTag().isBlank()) {
+                u.setUserTag(authService.generateUniqueUserTag());
+                u = userRepository.save(u);
+            }
+            return u;
+        }
+
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No user found matching ID: " + rawIdentifier.trim());
+    }
+
+    private String computeDeterministicTag(Long id, String email) {
+        if (id == null && (email == null || email.isBlank())) return "";
+        String seed = (id != null ? id : 1) + "_" + (email != null ? email : "bharath") + "_nova_workspace";
+        long hash = 5381;
+        for (int i = 0; i < seed.length(); i++) {
+            hash = ((hash << 5) + hash) + seed.charAt(i);
+            hash = hash & 0xFFFFFFFFL;
+        }
+        long current = Math.abs(hash);
+        String tagChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10; i++) {
+            int idx = (int) ((current + i * 13 + i * i * 7) % tagChars.length());
+            sb.append(tagChars.charAt(idx));
+            current = (current * 1664525L + 1013904223L) & 0x7FFFFFFFL;
+        }
+        return sb.toString();
     }
 
     public List<UserDto> searchUsers(User currentUser, String query) {

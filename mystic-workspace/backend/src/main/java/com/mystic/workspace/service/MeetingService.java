@@ -93,21 +93,62 @@ public class MeetingService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public MeetingDto getMeetingByRoomCode(User currentUser, String roomCode) {
-        Meeting meeting = meetingRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Meeting room not found"));
+        String cleanCode = (roomCode != null) ? roomCode.trim().toLowerCase() : "";
+        Meeting meeting = meetingRepository.findByRoomCode(cleanCode)
+                .orElseGet(() -> {
+                    Meeting newMeeting = Meeting.builder()
+                            .roomCode(cleanCode)
+                            .title("Workspace Meeting (" + cleanCode + ")")
+                            .host(currentUser)
+                            .status(Meeting.Status.ACTIVE)
+                            .createdAt(Instant.now())
+                            .startedAt(Instant.now())
+                            .build();
+                    Meeting saved = meetingRepository.save(newMeeting);
+                    MeetingParticipant hostP = MeetingParticipant.builder()
+                            .meeting(saved)
+                            .user(currentUser)
+                            .role(MeetingParticipant.Role.HOST)
+                            .joinedAt(Instant.now())
+                            .build();
+                    meetingParticipantRepository.save(hostP);
+                    return saved;
+                });
 
         return toDto(meeting);
     }
 
     @Transactional
     public MeetingDto joinMeeting(User currentUser, String roomCode) {
-        Meeting meeting = meetingRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Meeting room not found"));
+        String cleanCode = (roomCode != null) ? roomCode.trim().toLowerCase() : "";
+        Meeting meeting = meetingRepository.findByRoomCode(cleanCode)
+                .orElseGet(() -> {
+                    Meeting newMeeting = Meeting.builder()
+                            .roomCode(cleanCode)
+                            .title("Workspace Meeting (" + cleanCode + ")")
+                            .host(currentUser)
+                            .status(Meeting.Status.ACTIVE)
+                            .createdAt(Instant.now())
+                            .startedAt(Instant.now())
+                            .build();
+                    Meeting saved = meetingRepository.save(newMeeting);
+                    MeetingParticipant hostP = MeetingParticipant.builder()
+                            .meeting(saved)
+                            .user(currentUser)
+                            .role(MeetingParticipant.Role.HOST)
+                            .joinedAt(Instant.now())
+                            .build();
+                    meetingParticipantRepository.save(hostP);
+                    return saved;
+                });
 
         if (meeting.getStatus() == Meeting.Status.ENDED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This meeting has already ended");
+            meeting.setStatus(Meeting.Status.ACTIVE);
+            meeting.setStartedAt(Instant.now());
+            meeting.setEndedAt(null);
+            meetingRepository.save(meeting);
         }
 
         if (meeting.getStatus() == Meeting.Status.WAITING) {

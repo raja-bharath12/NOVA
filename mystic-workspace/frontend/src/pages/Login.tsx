@@ -1,15 +1,19 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const searchParams = new URLSearchParams(location.search)
+  const redirectTarget = searchParams.get('redirect') || (location.state as any)?.from?.pathname || '/'
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -17,7 +21,7 @@ export default function Login() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/')
+      navigate(redirectTarget, { replace: true })
     } catch (err: any) {
       setError(err?.response?.data?.message ?? 'Could not sign in. Check your credentials.')
     } finally {
@@ -77,7 +81,11 @@ export default function Login() {
 
         <p className="text-center text-sm text-muted mt-6">
           New here?{' '}
-          <Link to="/register" className="text-lavender hover:text-cyan-400 transition-colors">
+          <Link
+            to={location.search ? `/register${location.search}` : '/register'}
+            state={location.state}
+            className="text-lavender hover:text-cyan-400 transition-colors"
+          >
             Create an account
           </Link>
         </p>

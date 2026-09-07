@@ -2,6 +2,16 @@ import api from './api'
 import type { Conversation, Message, User } from '../types'
 import { generateFallbackTag } from './authService'
 
+function extractIdentifier(raw: string): string {
+  let cleaned = (raw || '').trim()
+  if (cleaned.includes('/chat/u/')) {
+    const parts = cleaned.split('/chat/u/')
+    cleaned = parts[parts.length - 1]
+  }
+  cleaned = cleaned.split('?')[0].split('#')[0].replace(/\/$/, '')
+  return cleaned
+}
+
 export const chatService = {
   async getConversations(): Promise<Conversation[]> {
     const res = await api.get<Conversation[]>('/conversations')
@@ -22,19 +32,21 @@ export const chatService = {
   },
 
   async createDirectConversationByTag(userTag: string): Promise<Conversation> {
-    const cleanTag = encodeURIComponent(userTag.trim().toUpperCase())
+    const cleaned = extractIdentifier(userTag)
+    const cleanTag = encodeURIComponent(cleaned.toUpperCase())
     try {
       const res = await api.post<Conversation>(`/conversations/direct/tag/${cleanTag}`)
       return res.data
     } catch {
       // Resilient Fallback: lookup user by tag and create direct conversation via recipientId
-      const targetUser = await this.lookupUserByTag(userTag)
+      const targetUser = await this.lookupUserByTag(cleaned)
       return this.createDirectConversation(targetUser.id)
     }
   },
 
   async lookupUserByTag(userTag: string): Promise<User> {
-    const normalizedTag = userTag.trim().toUpperCase()
+    const cleaned = extractIdentifier(userTag)
+    const normalizedTag = cleaned.toUpperCase()
     const cleanTag = encodeURIComponent(normalizedTag)
     try {
       const res = await api.get<User>(`/conversations/lookup/tag/${cleanTag}`)
@@ -44,11 +56,16 @@ export const chatService = {
       }
       return u
     } catch {
-      // Resilient Fallback: fetch workspace users and match by tag
+      // Resilient Fallback: fetch workspace users and match by tag, email, ID, or name
       const allUsers = await this.searchUsers()
       const match = allUsers.find((u) => {
         const uTag = (u.userTag || generateFallbackTag(u.id, u.email)).toUpperCase()
-        return uTag === normalizedTag
+        return (
+          uTag === normalizedTag ||
+          u.email.toLowerCase() === cleaned.toLowerCase() ||
+          String(u.id) === cleaned ||
+          u.name.toLowerCase() === cleaned.toLowerCase()
+        )
       })
       if (match) {
         return {
@@ -56,7 +73,7 @@ export const chatService = {
           userTag: match.userTag || generateFallbackTag(match.id, match.email),
         }
       }
-      throw new Error(`No user found with ID: ${userTag}`)
+      throw new Error(`No user found with ID or Link: ${userTag}`)
     }
   },
 
