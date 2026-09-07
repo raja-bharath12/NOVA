@@ -19,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/conversations")
+@RequestMapping({"/api/conversations", "/conversations", "/api/api/conversations"})
 @RequiredArgsConstructor
 public class ConversationController {
 

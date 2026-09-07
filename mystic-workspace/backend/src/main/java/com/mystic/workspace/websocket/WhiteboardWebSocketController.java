@@ -6,6 +6,7 @@ import com.mystic.workspace.repository.UserRepository;
 import com.mystic.workspace.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -22,17 +23,25 @@ public class WhiteboardWebSocketController {
     private final SimpMessagingTemplate messagingTemplate;
     private final UserRepository userRepository;
 
-    @MessageMapping({"/whiteboard.op", "/whiteboard.{boardId}.draw", "/meeting.{roomCode}.whiteboard.draw"})
-    public void handleWhiteboardOp(
-            @Payload WhiteboardOpDto op,
-            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "boardId", required = false) Long pathBoardId,
-            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "roomCode", required = false) String pathRoomCode,
-            Principal principal
-    ) {
-        User user = extractUser(principal);
-        if (pathBoardId != null) op.setBoardId(pathBoardId);
-        if (pathRoomCode != null) op.setRoomCode(pathRoomCode);
+    @MessageMapping("/whiteboard.op")
+    public void handleWhiteboardOp(@Payload WhiteboardOpDto op, Principal principal) {
+        broadcastOp(op, principal);
+    }
 
+    @MessageMapping("/whiteboard.{boardId}.draw")
+    public void handleBoardDraw(@DestinationVariable Long boardId, @Payload WhiteboardOpDto op, Principal principal) {
+        op.setBoardId(boardId);
+        broadcastOp(op, principal);
+    }
+
+    @MessageMapping("/meeting.{roomCode}.whiteboard.draw")
+    public void handleMeetingDraw(@DestinationVariable String roomCode, @Payload WhiteboardOpDto op, Principal principal) {
+        op.setRoomCode(roomCode);
+        broadcastOp(op, principal);
+    }
+
+    private void broadcastOp(WhiteboardOpDto op, Principal principal) {
+        User user = extractUser(principal);
         if (op.getBoardId() == null && op.getRoomCode() == null) return;
 
         if (user != null) {
@@ -51,17 +60,25 @@ public class WhiteboardWebSocketController {
         }
     }
 
-    @MessageMapping({"/whiteboard.cursor", "/whiteboard.{boardId}.cursor", "/meeting.{roomCode}.whiteboard.cursor"})
-    public void handleWhiteboardCursor(
-            @Payload WhiteboardOpDto cursor,
-            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "boardId", required = false) Long pathBoardId,
-            @org.springframework.messaging.handler.annotation.DestinationVariable(value = "roomCode", required = false) String pathRoomCode,
-            Principal principal
-    ) {
-        User user = extractUser(principal);
-        if (pathBoardId != null) cursor.setBoardId(pathBoardId);
-        if (pathRoomCode != null) cursor.setRoomCode(pathRoomCode);
+    @MessageMapping("/whiteboard.cursor")
+    public void handleWhiteboardCursor(@Payload WhiteboardOpDto cursor, Principal principal) {
+        broadcastCursor(cursor, principal);
+    }
 
+    @MessageMapping("/whiteboard.{boardId}.cursor")
+    public void handleBoardCursor(@DestinationVariable Long boardId, @Payload WhiteboardOpDto cursor, Principal principal) {
+        cursor.setBoardId(boardId);
+        broadcastCursor(cursor, principal);
+    }
+
+    @MessageMapping("/meeting.{roomCode}.whiteboard.cursor")
+    public void handleMeetingCursor(@DestinationVariable String roomCode, @Payload WhiteboardOpDto cursor, Principal principal) {
+        cursor.setRoomCode(roomCode);
+        broadcastCursor(cursor, principal);
+    }
+
+    private void broadcastCursor(WhiteboardOpDto cursor, Principal principal) {
+        User user = extractUser(principal);
         if (cursor.getBoardId() == null && cursor.getRoomCode() == null) return;
 
         cursor.setType(WhiteboardOpDto.Type.CURSOR_MOVE);

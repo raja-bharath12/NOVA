@@ -17,7 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/files")
+@RequestMapping({"/api/files", "/files", "/api/api/files"})
 @RequiredArgsConstructor
 public class FileController {
 

@@ -16,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/connections")
+@RequestMapping({"/api/connections", "/connections", "/api/api/connections"})
 @RequiredArgsConstructor
 public class UserConnectionController {
 

@@ -45,6 +45,9 @@ class ConversationServiceTest {
     @Mock
     private PresenceService presenceService;
 
+    @Mock
+    private AuthService authService;
+
     @InjectMocks
     private ConversationService conversationService;
 

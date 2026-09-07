@@ -274,12 +274,14 @@ public class ConversationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid user identifier");
         }
 
+        final String finalCleaned = cleaned;
+
         // 1. Direct match on userTag (case-insensitive)
-        Optional<User> byTag = userRepository.findByUserTagIgnoreCase(cleaned);
+        Optional<User> byTag = userRepository.findByUserTagIgnoreCase(finalCleaned);
         if (byTag.isPresent()) return byTag.get();
 
         // 2. Direct match on email (case-insensitive)
-        Optional<User> byEmail = userRepository.findByEmail(cleaned.toLowerCase());
+        Optional<User> byEmail = userRepository.findByEmail(finalCleaned.toLowerCase());
         if (byEmail.isPresent()) {
             User u = byEmail.get();
             if (u.getUserTag() == null || u.getUserTag().isBlank()) {
@@ -291,7 +293,7 @@ public class ConversationService {
 
         // 3. Numeric user ID match
         try {
-            Long userId = Long.parseLong(cleaned);
+            Long userId = Long.parseLong(finalCleaned);
             Optional<User> byId = userRepository.findById(userId);
             if (byId.isPresent()) {
                 User u = byId.get();
@@ -307,7 +309,7 @@ public class ConversationService {
         List<User> allUsers = userRepository.findAll();
         for (User u : allUsers) {
             String fallbackTag = computeDeterministicTag(u.getId(), u.getEmail());
-            if (fallbackTag.equalsIgnoreCase(cleaned)) {
+            if (fallbackTag.equalsIgnoreCase(finalCleaned)) {
                 u.setUserTag(fallbackTag);
                 return userRepository.save(u);
             }
@@ -315,7 +317,7 @@ public class ConversationService {
 
         // 5. Name match fallback (if unique match)
         List<User> nameMatches = allUsers.stream()
-                .filter(u -> u.getName() != null && u.getName().equalsIgnoreCase(cleaned))
+                .filter(u -> u.getName() != null && u.getName().equalsIgnoreCase(finalCleaned))
                 .toList();
         if (nameMatches.size() == 1) {
             User u = nameMatches.get(0);
