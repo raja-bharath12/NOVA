@@ -71,13 +71,29 @@ public class LocalStorageService implements StorageService {
     @Override
     public Resource loadAsResource(FileMetadata metadata) {
         try {
-            Path file = rootLocation.resolve(metadata.getStorageKey()).normalize();
-            Resource resource = new UrlResource(file.toUri());
-            if (resource.exists() || resource.isReadable()) {
-                return resource;
-            } else {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Could not read file: " + metadata.getOriginalFilename());
+            if (rootLocation != null) {
+                Path file = rootLocation.resolve(metadata.getStorageKey()).normalize();
+                Resource resource = new UrlResource(file.toUri());
+                if (resource.exists() && resource.isReadable()) {
+                    return resource;
+                }
             }
+
+            // Fallback 1: ./uploads
+            Path fallback1 = Paths.get("./uploads", metadata.getStorageKey()).toAbsolutePath().normalize();
+            Resource res1 = new UrlResource(fallback1.toUri());
+            if (res1.exists() && res1.isReadable()) {
+                return res1;
+            }
+
+            // Fallback 2: /tmp/uploads
+            Path fallback2 = Paths.get(System.getProperty("java.io.tmpdir"), "uploads", metadata.getStorageKey()).toAbsolutePath().normalize();
+            Resource res2 = new UrlResource(fallback2.toUri());
+            if (res2.exists() && res2.isReadable()) {
+                return res2;
+            }
+
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Could not read file: " + metadata.getOriginalFilename());
         } catch (MalformedURLException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Could not read file", e);
         }

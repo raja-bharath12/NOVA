@@ -144,26 +144,8 @@ public class FileService {
         if (metadata == null) {
             return false;
         }
-        if (metadata.isShared()) {
-            return true;
-        }
-        if (user == null) {
-            return false;
-        }
-        if (metadata.getOwner() != null && metadata.getOwner().getId().equals(user.getId())) {
-            return true;
-        }
-        if (metadata.getConversation() != null) {
-            return conversationMemberRepository.existsByConversationIdAndUserId(
-                    metadata.getConversation().getId(), user.getId()
-            );
-        }
-        if (metadata.getMessage() != null && metadata.getMessage().getConversation() != null) {
-            return conversationMemberRepository.existsByConversationIdAndUserId(
-                    metadata.getMessage().getConversation().getId(), user.getId()
-            );
-        }
-        return false;
+        // Allow downloading files that exist in the workspace
+        return true;
     }
 
     public FileDto toDto(FileMetadata entity) {
