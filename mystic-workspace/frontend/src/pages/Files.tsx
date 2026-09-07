@@ -264,7 +264,7 @@ export default function Files() {
                 >
                   {isImg ? (
                     <img
-                      src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                      src={fileService.getFileUrl(file.downloadUrl)}
                       alt={file.originalFilename}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -308,16 +308,14 @@ export default function Files() {
                   </span>
 
                   <div className="flex items-center gap-1">
-                    <a
-                      href={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
-                      download={file.originalFilename}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => fileService.downloadFile(file.id, file.originalFilename, file.downloadUrl)}
                       className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-muted hover:text-lavender transition-all"
                       title="Download"
                     >
                       <Download size={13} />
-                    </a>
+                    </button>
                     <button
                       onClick={() => handleDeleteFile(file.id)}
                       className="p-1.5 rounded-lg bg-white/[0.04] hover:bg-rose-500/20 text-muted hover:text-rose-400 transition-all"
@@ -341,7 +339,7 @@ export default function Files() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="glass-panel w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden border border-violet-500/30 shadow-2xl"
+              className="glass-panel w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-violet-500/30 shadow-2xl"
             >
               <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between bg-void-950/40">
                 <div className="min-w-0">
@@ -349,38 +347,46 @@ export default function Files() {
                   <p className="text-[10px] text-muted font-mono">{formatFileSize(previewFile.fileSize)} • {previewFile.mimeType}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <a
-                    href={previewFile.downloadUrl.startsWith('http') ? previewFile.downloadUrl : `${BACKEND_URL}${previewFile.downloadUrl}`}
-                    download={previewFile.originalFilename}
+                  <button
+                    type="button"
+                    onClick={() => fileService.downloadFile(previewFile.id, previewFile.originalFilename, previewFile.downloadUrl)}
                     className="h-8 px-3 rounded-lg bg-violet-600/30 hover:bg-violet-600/50 text-xs text-silver flex items-center gap-1.5 border border-violet-400/30"
                   >
                     <Download size={14} />
                     <span>Download</span>
-                  </a>
+                  </button>
                   <button onClick={() => setPreviewFile(null)} className="text-muted hover:text-lavender">
                     <X size={18} />
                   </button>
                 </div>
               </div>
 
-              <div className="p-6 flex-1 flex items-center justify-center bg-void-950/60 overflow-auto">
+              <div className="p-4 flex-1 flex items-center justify-center bg-void-950/60 overflow-auto min-h-[400px]">
                 {previewFile.mimeType.startsWith('image/') ? (
                   <img
-                    src={previewFile.downloadUrl.startsWith('http') ? previewFile.downloadUrl : `${BACKEND_URL}${previewFile.downloadUrl}`}
+                    src={fileService.getFileUrl(previewFile.downloadUrl)}
                     alt={previewFile.originalFilename}
-                    className="max-h-[60vh] max-w-full rounded-xl object-contain shadow-glow"
+                    className="max-h-[65vh] max-w-full rounded-xl object-contain shadow-glow"
                   />
                 ) : previewFile.mimeType.startsWith('video/') ? (
                   <video
-                    src={previewFile.downloadUrl.startsWith('http') ? previewFile.downloadUrl : `${BACKEND_URL}${previewFile.downloadUrl}`}
+                    src={fileService.getFileUrl(previewFile.downloadUrl)}
                     controls
-                    className="max-h-[60vh] max-w-full rounded-xl"
+                    className="max-h-[65vh] max-w-full rounded-xl"
                   />
+                ) : previewFile.mimeType === 'application/pdf' ? (
+                  <div className="w-full h-[65vh] flex flex-col">
+                    <iframe
+                      src={fileService.getFileUrl(previewFile.downloadUrl)}
+                      className="w-full flex-1 rounded-xl border border-white/10 bg-void-950"
+                      title={previewFile.originalFilename}
+                    />
+                  </div>
                 ) : (
                   <div className="text-center p-8">
                     <FileText size={48} className="mx-auto text-cyan-400 mb-3" />
                     <p className="text-sm text-silver font-medium">{previewFile.originalFilename}</p>
-                    <p className="text-xs text-muted mt-1">Preview not available for this format. Download to view.</p>
+                    <p className="text-xs text-muted mt-1">Preview not available for this format. Click download to view.</p>
                   </div>
                 )}
               </div>

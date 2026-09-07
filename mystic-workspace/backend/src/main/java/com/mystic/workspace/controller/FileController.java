@@ -23,6 +23,7 @@ public class FileController {
 
     private final FileService fileService;
     private final UserRepository userRepository;
+    private final com.mystic.workspace.security.JwtService jwtService;
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public FileDto uploadFile(
@@ -46,9 +47,34 @@ public class FileController {
     @GetMapping("/{id}/download")
     public ResponseEntity<?> downloadFile(
             @AuthenticationPrincipal UserPrincipal principal,
-            @PathVariable Long id
+            @PathVariable Long id,
+            @RequestParam(value = "token", required = false) String tokenParam,
+            @RequestParam(value = "jwt", required = false) String jwtParam,
+            @RequestParam(value = "auth", required = false) String authParam
     ) {
-        User user = currentUser(principal);
+        User user = null;
+        if (principal != null) {
+            user = userRepository.findById(principal.getId()).orElse(null);
+        }
+
+        if (user == null) {
+            String token = tokenParam;
+            if (token == null || token.isBlank()) token = jwtParam;
+            if (token == null || token.isBlank()) token = authParam;
+
+            if (token != null && !token.isBlank()) {
+                try {
+                    String email = jwtService.extractUsername(token.trim());
+                    if (email != null) {
+                        user = userRepository.findByEmail(email).orElse(null);
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        FileMetadata metadata = fileService.getFileMetadata(user, id);
+
         String directUrl = fileService.getDirectDownloadUrl(user, id);
         if (directUrl != null) {
             return ResponseEntity.status(HttpStatus.FOUND)
@@ -56,7 +82,6 @@ public class FileController {
                     .build();
         }
 
-        FileMetadata metadata = fileService.getFileMetadata(user, id);
         Resource resource = fileService.loadFileAsResource(user, id);
 
         MediaType mediaType;
@@ -67,13 +92,15 @@ public class FileController {
         }
 
         String disposition = "inline";
-        if (!metadata.getMimeType().startsWith("image/") && !metadata.getMimeType().startsWith("video/") && !metadata.getMimeType().equals("application/pdf")) {
+        String mime = metadata.getMimeType() != null ? metadata.getMimeType().toLowerCase() : "";
+        if (!mime.startsWith("image/") && !mime.startsWith("video/") && !mime.startsWith("audio/") && !mime.equals("application/pdf") && !mime.startsWith("text/")) {
             disposition = "attachment";
         }
 
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + metadata.getOriginalFilename() + "\"")
+                .header(HttpHeaders.CACHE_CONTROL, "max-age=3600, must-revalidate")
                 .body(resource);
     }
 
@@ -87,6 +114,9 @@ public class FileController {
     }
 
     private User currentUser(UserPrincipal principal) {
+        if (principal == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Please sign in to perform this action");
+        }
         return userRepository.findById(principal.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
     }

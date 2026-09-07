@@ -888,7 +888,7 @@ export default function Chat() {
                                       return (
                                         <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.15] max-w-xs">
                                           <img
-                                            src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                            src={fileService.getFileUrl(file.downloadUrl)}
                                             alt={file.originalFilename}
                                             className="w-full h-auto object-cover max-h-60"
                                           />
@@ -900,7 +900,7 @@ export default function Chat() {
                                       return (
                                         <div key={file.id} className="rounded-xl overflow-hidden border border-white/[0.15] max-w-xs">
                                           <video
-                                            src={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
+                                            src={fileService.getFileUrl(file.downloadUrl)}
                                             controls
                                             className="w-full max-h-60"
                                           />
@@ -909,27 +909,39 @@ export default function Chat() {
                                     }
 
                                     return (
-                                      <a
+                                      <div
                                         key={file.id}
-                                        href={file.downloadUrl.startsWith('http') ? file.downloadUrl : `${BACKEND_URL}${file.downloadUrl}`}
-                                        download={file.originalFilename}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
+                                        onClick={(e) => {
+                                          e.preventDefault()
+                                          fileService.downloadFile(file.id, file.originalFilename, file.downloadUrl)
+                                        }}
+                                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none group ${
                                           isOwn
                                             ? 'bg-white/10 border-white/20 hover:bg-white/15 text-white'
                                             : 'bg-void-950/70 border-white/[0.08] hover:border-violet-400/40 text-silver'
                                         }`}
+                                        title={`Download ${file.originalFilename}`}
                                       >
                                         <FileText size={18} className={isOwn ? 'text-white' : 'text-cyan-400'} />
                                         <div className="min-w-0 flex-1">
-                                          <p className="text-xs font-medium truncate">{file.originalFilename}</p>
+                                          <p className="text-xs font-medium truncate group-hover:text-cyan-400 transition-colors">{file.originalFilename}</p>
                                           <p className={`text-[10px] ${isOwn ? 'text-violet-200' : 'text-muted'}`}>
                                             {(file.fileSize / 1024).toFixed(1)} KB
                                           </p>
                                         </div>
-                                        <Download size={14} className={isOwn ? 'text-white' : 'text-muted hover:text-lavender'} />
-                                      </a>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+                                            fileService.downloadFile(file.id, file.originalFilename, file.downloadUrl)
+                                          }}
+                                          className="p-1 rounded-lg hover:bg-white/10 transition-colors"
+                                          title="Download file"
+                                        >
+                                          <Download size={14} className={isOwn ? 'text-white' : 'text-muted hover:text-lavender'} />
+                                        </button>
+                                      </div>
                                     )
                                   })}
                                 </div>
