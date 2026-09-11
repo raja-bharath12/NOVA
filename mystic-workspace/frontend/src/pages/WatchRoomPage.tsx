@@ -20,6 +20,29 @@ import type { WatchRoom, WatchChatMessage, WatchControlSignal, WatchRoomMemberIn
 import WatchPlayer from '../components/watch/WatchPlayer'
 import WatchChatOverlay from '../components/watch/WatchChatOverlay'
 
+function sanitizeRoomCode(raw: string): string {
+  if (!raw) return ''
+  let decoded = ''
+  try {
+    decoded = decodeURIComponent(raw).trim()
+  } catch {
+    decoded = raw.trim()
+  }
+  if (decoded.includes('?')) decoded = decoded.split('?')[0]
+  if (decoded.includes('#')) decoded = decoded.split('#')[0]
+  if (decoded.includes('/')) {
+    const parts = decoded.split('/').filter(Boolean)
+    if (parts.length > 0) decoded = parts[parts.length - 1]
+  }
+  decoded = decoded.replace(/^[\s.,/\\:;!?'"()[\]{}<>~`@#$%^&*+=]+|[\s.,/\\:;!?'"()[\]{}<>~`@#$%^&*+=]+$/g, '')
+  const normalized = decoded.toLowerCase().replace(/[\s_]+/g, '-')
+  const match = normalized.match(/(?:nova[-_]?watch[-_]?)([a-z0-9]+)/)
+  if (match) return `nova-watch-${match[1]}`
+  const suffixMatch = normalized.match(/([a-z0-9]{4,10})/)
+  if (suffixMatch) return `nova-watch-${suffixMatch[1]}`
+  return normalized
+}
+
 export const WatchRoomPage: React.FC = () => {
   const { roomCode } = useParams<{ roomCode: string }>()
   const { user } = useAuth()
@@ -46,7 +69,7 @@ export const WatchRoomPage: React.FC = () => {
   const isHost = Boolean(user && room && room.hostId === user.id)
 
   // Clean & sanitize roomCode parameter
-  const cleanRoomCode = (roomCode || '').trim()
+  const cleanRoomCode = sanitizeRoomCode(roomCode || '')
 
   // Fetch room data and initial messages
   const loadRoomData = useCallback(async () => {

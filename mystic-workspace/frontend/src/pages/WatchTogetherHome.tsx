@@ -121,11 +121,22 @@ export default function WatchTogetherHome() {
     e.preventDefault()
     if (!joinCodeInput.trim()) return
 
-    let code = joinCodeInput.trim()
-    if (code.includes('/watch/')) {
-      code = code.substring(code.lastIndexOf('/watch/') + 7)
+    let raw = joinCodeInput.trim()
+    try {
+      raw = decodeURIComponent(raw).trim()
+    } catch {}
+    if (raw.includes('?')) raw = raw.split('?')[0]
+    if (raw.includes('#')) raw = raw.split('#')[0]
+    if (raw.includes('/')) {
+      const parts = raw.split('/').filter(Boolean)
+      if (parts.length > 0) raw = parts[parts.length - 1]
     }
-    code = code.replace(/^\/+|\/+$/g, '').trim()
+    raw = raw.replace(/^[\s.,/\\:;!?'"()[\]{}<>~`@#$%^&*+=]+|[\s.,/\\:;!?'"()[\]{}<>~`@#$%^&*+=]+$/g, '')
+    const normalized = raw.toLowerCase().replace(/[\s_]+/g, '-')
+    const match = normalized.match(/(?:nova[-_]?watch[-_]?)([a-z0-9]+)/)
+    const suffixMatch = normalized.match(/([a-z0-9]{4,10})/)
+    const code = match ? `nova-watch-${match[1]}` : (suffixMatch ? `nova-watch-${suffixMatch[1]}` : normalized)
+
     if (!code) return
     navigate(`/watch/${code}`)
   }

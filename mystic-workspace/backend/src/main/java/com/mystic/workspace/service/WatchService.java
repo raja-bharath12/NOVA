@@ -268,17 +268,51 @@ public class WatchService {
     // 3. WATCH ROOM MANAGEMENT
     // =========================================================================
 
+    public static String sanitizeRoomCode(String raw) {
+        if (raw == null || raw.isBlank()) return "";
+        try {
+            raw = java.net.URLDecoder.decode(raw, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception ignored) {}
+
+        String trimmed = raw.trim();
+        if (trimmed.contains("?")) {
+            trimmed = trimmed.substring(0, trimmed.indexOf('?'));
+        }
+        if (trimmed.contains("#")) {
+            trimmed = trimmed.substring(0, trimmed.indexOf('#'));
+        }
+        if (trimmed.contains("/")) {
+            String[] segments = trimmed.split("/");
+            for (int i = segments.length - 1; i >= 0; i--) {
+                if (!segments[i].trim().isEmpty()) {
+                    trimmed = segments[i].trim();
+                    break;
+                }
+            }
+        }
+        trimmed = trimmed.replaceAll("^[\\s.,/\\\\:;!?'\"()\\[\\]{}<>~`@#$%^&*+=]+|[\\s.,/\\\\:;!?'\"()\\[\\]{}<>~`@#$%^&*+=]+$", "");
+        String normalized = trimmed.toLowerCase().replaceAll("[\\s_]+", "-");
+
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?:nova[-_]?watch[-_]?)([a-z0-9]+)").matcher(normalized);
+        if (m.find()) {
+            return "nova-watch-" + m.group(1);
+        }
+
+        java.util.regex.Matcher mSuffix = java.util.regex.Pattern.compile("([a-z0-9]{4,10})").matcher(normalized);
+        if (mSuffix.find()) {
+            return "nova-watch-" + mSuffix.group(1);
+        }
+
+        return normalized;
+    }
+
     public WatchRoom findRoomByLenientCode(String code) {
         if (code == null || code.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Room code is required");
         }
-        String cleaned = code.trim();
-        if (cleaned.contains("/watch/")) {
-            cleaned = cleaned.substring(cleaned.lastIndexOf("/watch/") + 7);
-        }
-        cleaned = cleaned.replaceAll("[/\\s]", "");
+        String cleaned = sanitizeRoomCode(code);
 
-        // 1. Direct match
+        // 1. Direct match with sanitized code
         Optional<WatchRoom> roomOpt = roomRepository.findByRoomCode(cleaned);
         if (roomOpt.isPresent()) return roomOpt.get();
 
@@ -286,11 +320,9 @@ public class WatchService {
         roomOpt = roomRepository.findByRoomCodeIgnoreCase(cleaned);
         if (roomOpt.isPresent()) return roomOpt.get();
 
-        // 3. Short suffix match (e.g. user typed 'ruztq' instead of 'nova-watch-ruztq')
-        if (!cleaned.toLowerCase().startsWith("nova-watch-")) {
-            roomOpt = roomRepository.findByRoomCodeIgnoreCase("nova-watch-" + cleaned);
-            if (roomOpt.isPresent()) return roomOpt.get();
-        }
+        // 3. Match raw code case-insensitive
+        roomOpt = roomRepository.findByRoomCodeIgnoreCase(code.trim());
+        if (roomOpt.isPresent()) return roomOpt.get();
 
         throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Watch Room not found. Please verify the room code or link.");
     }
