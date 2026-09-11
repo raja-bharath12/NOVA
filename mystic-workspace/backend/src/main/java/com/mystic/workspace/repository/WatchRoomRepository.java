@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface WatchRoomRepository extends JpaRepository<WatchRoom, Long> {
     Optional<WatchRoom> findByRoomCode(String roomCode);
+    Optional<WatchRoom> findByRoomCodeIgnoreCase(String roomCode);
     List<WatchRoom> findByHostOrderByCreatedAtDesc(User host);
     List<WatchRoom> findByStatusOrderByCreatedAtDesc(WatchRoom.Status status);
 }

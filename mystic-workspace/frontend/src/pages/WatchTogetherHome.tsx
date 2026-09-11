@@ -125,6 +125,8 @@ export default function WatchTogetherHome() {
     if (code.includes('/watch/')) {
       code = code.substring(code.lastIndexOf('/watch/') + 7)
     }
+    code = code.replace(/^\/+|\/+$/g, '').trim()
+    if (!code) return
     navigate(`/watch/${code}`)
   }
 

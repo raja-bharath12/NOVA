@@ -45,13 +45,22 @@ export const WatchRoomPage: React.FC = () => {
 
   const isHost = Boolean(user && room && room.hostId === user.id)
 
+  // Clean & sanitize roomCode parameter
+  const cleanRoomCode = (roomCode || '').trim()
+
   // Fetch room data and initial messages
   const loadRoomData = useCallback(async () => {
-    if (!roomCode) return
+    if (!cleanRoomCode) return
     try {
       setLoading(true)
       setError(null)
-      const roomData = await watchService.getRoom(roomCode)
+      // Attempt joinRoom first to register viewer, fallback to getRoom
+      let roomData: WatchRoom
+      try {
+        roomData = await watchService.joinRoom(cleanRoomCode)
+      } catch {
+        roomData = await watchService.getRoom(cleanRoomCode)
+      }
       setRoom(roomData)
       setMembers(roomData.members || [])
 
@@ -61,7 +70,7 @@ export const WatchRoomPage: React.FC = () => {
 
       // Load initial chat history
       try {
-        const history = await watchService.getMessages(roomCode)
+        const history = await watchService.getMessages(cleanRoomCode)
         setMessages(history)
       } catch (chatErr) {
         console.warn('Failed to load chat history', chatErr)
@@ -72,7 +81,7 @@ export const WatchRoomPage: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [roomCode])
+  }, [cleanRoomCode])
 
   useEffect(() => {
     loadRoomData()
@@ -214,13 +223,21 @@ export const WatchRoomPage: React.FC = () => {
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Watch Room Not Found</h2>
         <p className="text-slate-400 text-center max-w-md mb-6">{error || 'This room does not exist or has been ended.'}</p>
-        <button
-          onClick={() => navigate('/watch')}
-          className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-all shadow-lg shadow-indigo-600/30 flex items-center gap-2"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Watch Together
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => loadRoomData()}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition-all shadow-lg shadow-indigo-600/30"
+          >
+            Try Again
+          </button>
+          <button
+            onClick={() => navigate('/watch')}
+            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium transition-all border border-slate-700 flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Watch
+          </button>
+        </div>
       </div>
     )
   }

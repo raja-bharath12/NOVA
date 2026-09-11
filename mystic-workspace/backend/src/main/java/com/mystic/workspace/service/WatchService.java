@@ -227,6 +227,7 @@ public class WatchService {
         return toMediaDto(saved);
     }
 
+    @Transactional(readOnly = true)
     public List<WatchMediaDto> getUserMedia(User user) {
         return mediaRepository.findByOwnerOrderByCreatedAtDesc(user)
                 .stream()
@@ -235,11 +236,13 @@ public class WatchService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public WatchMedia getMediaEntity(Long mediaId) {
         return mediaRepository.findById(mediaId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found"));
     }
 
+    @Transactional(readOnly = true)
     public WatchMediaDto getMedia(User user, Long mediaId) {
         WatchMedia media = getMediaEntity(mediaId);
         return toMediaDto(media);
@@ -264,6 +267,33 @@ public class WatchService {
     // =========================================================================
     // 3. WATCH ROOM MANAGEMENT
     // =========================================================================
+
+    public WatchRoom findRoomByLenientCode(String code) {
+        if (code == null || code.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Room code is required");
+        }
+        String cleaned = code.trim();
+        if (cleaned.contains("/watch/")) {
+            cleaned = cleaned.substring(cleaned.lastIndexOf("/watch/") + 7);
+        }
+        cleaned = cleaned.replaceAll("[/\\s]", "");
+
+        // 1. Direct match
+        Optional<WatchRoom> roomOpt = roomRepository.findByRoomCode(cleaned);
+        if (roomOpt.isPresent()) return roomOpt.get();
+
+        // 2. Case-insensitive match
+        roomOpt = roomRepository.findByRoomCodeIgnoreCase(cleaned);
+        if (roomOpt.isPresent()) return roomOpt.get();
+
+        // 3. Short suffix match (e.g. user typed 'ruztq' instead of 'nova-watch-ruztq')
+        if (!cleaned.toLowerCase().startsWith("nova-watch-")) {
+            roomOpt = roomRepository.findByRoomCodeIgnoreCase("nova-watch-" + cleaned);
+            if (roomOpt.isPresent()) return roomOpt.get();
+        }
+
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Watch Room not found. Please verify the room code or link.");
+    }
 
     @Transactional
     public WatchRoomDto createRoom(User user, Long mediaId, String title) {
@@ -299,17 +329,15 @@ public class WatchService {
         return toRoomDto(savedRoom);
     }
 
+    @Transactional(readOnly = true)
     public WatchRoomDto getRoomByCode(String roomCode) {
-        WatchRoom room = roomRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Watch Room not found"));
-
+        WatchRoom room = findRoomByLenientCode(roomCode);
         return toRoomDto(room);
     }
 
     @Transactional
     public WatchRoomDto joinRoom(User user, String roomCode) {
-        WatchRoom room = roomRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Watch Room not found"));
+        WatchRoom room = findRoomByLenientCode(roomCode);
 
         if (room.getStatus() == WatchRoom.Status.ENDED) {
             throw new ResponseStatusException(HttpStatus.GONE, "This Watch Room has ended");
@@ -333,26 +361,26 @@ public class WatchService {
             memberRepository.save(member);
         }
 
-        log.info("User {} joined WatchRoom {}", user.getEmail(), roomCode);
+        log.info("User {} joined WatchRoom {}", user.getEmail(), room.getRoomCode());
         return toRoomDto(room);
     }
 
     @Transactional
     public void leaveRoom(User user, String roomCode) {
-        WatchRoom room = roomRepository.findByRoomCode(roomCode).orElse(null);
-        if (room != null) {
+        try {
+            WatchRoom room = findRoomByLenientCode(roomCode);
             memberRepository.findByRoomAndUser(room, user).ifPresent(m -> {
                 m.setLeftAt(Instant.now());
                 memberRepository.save(m);
             });
-            log.info("User {} left WatchRoom {}", user.getEmail(), roomCode);
+            log.info("User {} left WatchRoom {}", user.getEmail(), room.getRoomCode());
+        } catch (Exception ignored) {
         }
     }
 
     @Transactional
     public WatchRoomDto endRoom(User user, String roomCode) {
-        WatchRoom room = roomRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Watch Room not found"));
+        WatchRoom room = findRoomByLenientCode(roomCode);
 
         if (!room.getHost().getId().equals(user.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can end this Watch Room");
@@ -368,14 +396,14 @@ public class WatchService {
         activeMembers.forEach(m -> m.setLeftAt(Instant.now()));
         memberRepository.saveAll(activeMembers);
 
-        log.info("WatchRoom {} ended by host {}", roomCode, user.getEmail());
+        log.info("WatchRoom {} ended by host {}", room.getRoomCode(), user.getEmail());
         return toRoomDto(ended);
     }
 
     @Transactional
     public void updatePlaybackState(String roomCode, Double position, Boolean isPlaying, Double playbackRate) {
-        WatchRoom room = roomRepository.findByRoomCode(roomCode).orElse(null);
-        if (room != null) {
+        try {
+            WatchRoom room = findRoomByLenientCode(roomCode);
             if (position != null) {
                 room.setCurrentPosition(Math.max(0.0, position));
             }
@@ -388,6 +416,7 @@ public class WatchService {
             room.setLastSyncedAt(Instant.now());
             room.setUpdatedAt(Instant.now());
             roomRepository.save(room);
+        } catch (Exception ignored) {
         }
     }
 
@@ -397,8 +426,7 @@ public class WatchService {
 
     @Transactional
     public WatchChatMessageDto saveChatMessage(User sender, String roomCode, String content) {
-        WatchRoom room = roomRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Watch Room not found"));
+        WatchRoom room = findRoomByLenientCode(roomCode);
 
         WatchRoomMessage msg = WatchRoomMessage.builder()
                 .room(room)
@@ -411,9 +439,9 @@ public class WatchService {
         return toMessageDto(saved);
     }
 
+    @Transactional(readOnly = true)
     public List<WatchChatMessageDto> getRoomMessages(String roomCode) {
-        WatchRoom room = roomRepository.findByRoomCode(roomCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Watch Room not found"));
+        WatchRoom room = findRoomByLenientCode(roomCode);
 
         return messageRepository.findByRoomOrderByCreatedAtAsc(room)
                 .stream()
