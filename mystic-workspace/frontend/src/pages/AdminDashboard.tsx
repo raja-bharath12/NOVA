@@ -46,6 +46,8 @@ export default function AdminDashboard() {
   const [userRoleFilter, setUserRoleFilter] = useState<'ALL' | 'ADMIN' | 'USER'>('ALL')
   const [processingUserId, setProcessingUserId] = useState<number | null>(null)
   const [processingRoomCode, setProcessingRoomCode] = useState<string | null>(null)
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     loadAllAdminData()
@@ -104,7 +106,7 @@ export default function AdminDashboard() {
       return
     }
 
-    if (!window.confirm(`Are you sure you want to permanently delete user "${targetUser.name}" (@${targetUser.userTag || targetUser.email})?`)) {
+    if (!window.confirm(`Are you sure you want to permanently delete user "${targetUser.name}" (@${targetUser.userTag || targetUser.email})?\n\nAll their data (messages, files, rooms, tasks) will be permanently erased and cannot be recovered.`)) {
       return
     }
 
@@ -112,11 +114,53 @@ export default function AdminDashboard() {
       setProcessingUserId(targetUser.id)
       await adminService.deleteUser(targetUser.id)
       setUsers((prev) => prev.filter((u) => u.id !== targetUser.id))
-      showToast(`User ${targetUser.name} deleted successfully.`, 'info')
+      setSelectedUserIds((prev) => {
+        const next = new Set(prev)
+        next.delete(targetUser.id)
+        return next
+      })
+      showToast(`User ${targetUser.name} and all associated data permanently deleted.`, 'info')
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Failed to delete user', 'warning')
     } finally {
       setProcessingUserId(null)
+    }
+  }
+
+  function handleToggleSelectUser(userId: number) {
+    setSelectedUserIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }
+
+  async function handleBulkDelete() {
+    if (selectedUserIds.size === 0) return
+    const count = selectedUserIds.size
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete ${count} selected user account(s)?\n\nAll their messages, files, meetings, tasks, and room memberships will be permanently wiped from the database. This action CANNOT be recovered.`
+      )
+    ) {
+      return
+    }
+
+    try {
+      setBulkDeleting(true)
+      const idsToDelete = Array.from(selectedUserIds)
+      const res = await adminService.bulkDeleteUsers(idsToDelete)
+      setUsers((prev) => prev.filter((u) => !selectedUserIds.has(u.id)))
+      setSelectedUserIds(new Set())
+      showToast(res.message || `Deleted ${count} users permanently.`, 'success')
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Failed to delete selected users', 'warning')
+    } finally {
+      setBulkDeleting(false)
     }
   }
 
@@ -417,12 +461,89 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* Bulk Selection Action Bar */}
+            <AnimatePresence>
+              {selectedUserIds.size > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                  className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-rose-950/90 via-void-900 to-rose-950/80 border border-rose-500/40 shadow-[0_0_24px_rgba(244,63,94,0.2)]"
+                >
+                  <div className="flex items-center gap-2.5 text-xs font-semibold text-rose-200">
+                    <div className="h-7 w-7 rounded-xl bg-rose-500/20 border border-rose-400/30 flex items-center justify-center text-rose-400">
+                      <AlertTriangle size={15} />
+                    </div>
+                    <div>
+                      <span className="font-bold text-white">{selectedUserIds.size}</span> user
+                      {selectedUserIds.size > 1 ? 's' : ''} selected for permanent deletion
+                      <p className="text-[10px] text-rose-300/80 font-normal">
+                        All chats, files, stream memberships & accounts will be wiped permanently.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      onClick={() => setSelectedUserIds(new Set())}
+                      className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-muted hover:text-silver text-xs font-medium transition-all"
+                    >
+                      Deselect All
+                    </button>
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={bulkDeleting}
+                      className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 via-rose-500 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs shadow-md shadow-rose-950/50 hover:shadow-rose-500/30 transition-all flex items-center gap-1.5"
+                    >
+                      <Trash2 size={13} className={bulkDeleting ? 'animate-spin' : ''} />
+                      <span>
+                        {bulkDeleting
+                          ? 'Deleting...'
+                          : `Permanently Delete Selected (${selectedUserIds.size})`}
+                      </span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Users Table */}
             <div className="glass-panel border border-white/[0.08] rounded-3xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-void-900/80 text-muted uppercase text-[10px] tracking-wider border-b border-white/[0.06]">
                     <tr>
+                      <th className="py-3 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={
+                            filteredUsers.filter(
+                              (u) => u.email.toLowerCase() !== MASTER_ADMIN_EMAIL.toLowerCase()
+                            ).length > 0 &&
+                            filteredUsers
+                              .filter(
+                                (u) => u.email.toLowerCase() !== MASTER_ADMIN_EMAIL.toLowerCase()
+                              )
+                              .every((u) => selectedUserIds.has(u.id))
+                          }
+                          onChange={() => {
+                            const eligible = filteredUsers.filter(
+                              (u) => u.email.toLowerCase() !== MASTER_ADMIN_EMAIL.toLowerCase()
+                            )
+                            const isAllSelected =
+                              eligible.length > 0 &&
+                              eligible.every((u) => selectedUserIds.has(u.id))
+
+                            if (isAllSelected) {
+                              setSelectedUserIds(new Set())
+                            } else {
+                              setSelectedUserIds(new Set(eligible.map((u) => u.id)))
+                            }
+                          }}
+                          className="rounded bg-void-950 border-white/20 text-violet-500 focus:ring-violet-400 focus:ring-offset-0 h-4 w-4 cursor-pointer accent-violet-600"
+                          title="Select All Eligible Users"
+                        />
+                      </th>
                       <th className="py-3 px-4">User</th>
                       <th className="py-3 px-4">@Username</th>
                       <th className="py-3 px-4">Email</th>
@@ -435,9 +556,33 @@ export default function AdminDashboard() {
                     {filteredUsers.map((u) => {
                       const isMaster = u.email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase()
                       const isAdmin = u.role === 'ADMIN'
+                      const isSelected = selectedUserIds.has(u.id)
 
                       return (
-                        <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
+                        <tr
+                          key={u.id}
+                          className={`transition-colors ${
+                            isSelected ? 'bg-rose-500/10' : 'hover:bg-white/[0.02]'
+                          }`}
+                        >
+                          <td className="py-3 px-3 w-10 text-center">
+                            {!isMaster ? (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleSelectUser(u.id)}
+                                className="rounded bg-void-950 border-white/20 text-rose-500 focus:ring-rose-400 focus:ring-offset-0 h-4 w-4 cursor-pointer accent-rose-600"
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center" title="Master Root Admin Protected">
+                                <Lock
+                                  size={13}
+                                  className="text-muted/40"
+                                />
+                              </div>
+                            )}
+                          </td>
+
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2.5">
                               <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-violet-600 to-cyan-500 p-[1.5px] flex-shrink-0">
@@ -491,14 +636,16 @@ export default function AdminDashboard() {
                                     onClick={() => handleDeleteUser(u)}
                                     disabled={processingUserId === u.id}
                                     className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/25 text-rose-400 border border-rose-500/20 transition-all"
-                                    title="Delete User"
+                                    title="Delete User Permanently"
                                   >
                                     <Trash2 size={13} />
                                   </button>
                                 </>
                               )}
                               {isMaster && (
-                                <span className="text-[10px] font-mono text-muted/60 italic">Root Owner</span>
+                                <span className="text-[10px] font-mono text-muted/60 italic">
+                                  Root Owner
+                                </span>
                               )}
                             </div>
                           </td>

@@ -143,16 +143,12 @@ public class AdminController {
                 .build();
     }
 
-    @org.springframework.transaction.annotation.Transactional
-    @DeleteMapping("/users/{id}")
-    public Map<String, Object> deleteUser(@PathVariable Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    @Data
+    public static class BulkDeleteRequest {
+        private List<Long> userIds;
+    }
 
-        if (AuthService.MASTER_ADMIN_EMAIL.equalsIgnoreCase(user.getEmail())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot delete master admin (" + AuthService.MASTER_ADMIN_EMAIL + ")");
-        }
-
+    private void permanentlyDeleteUserData(Long id) {
         // 1. Watch Room & Media dependencies
         entityManager.createNativeQuery("DELETE FROM watch_room_messages WHERE sender_id = :uid OR room_id IN (SELECT id FROM watch_rooms WHERE host_id = :uid OR media_id IN (SELECT id FROM watch_media WHERE owner_id = :uid))")
                 .setParameter("uid", id).executeUpdate();
@@ -195,13 +191,53 @@ public class AdminController {
         entityManager.createNativeQuery("DELETE FROM events WHERE user_id = :uid")
                 .setParameter("uid", id).executeUpdate();
 
-        // 5. Delete user record
+        // 5. Delete user record permanently
         entityManager.createNativeQuery("DELETE FROM users WHERE id = :uid")
                 .setParameter("uid", id).executeUpdate();
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    @DeleteMapping("/users/{id}")
+    public Map<String, Object> deleteUser(@PathVariable Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (AuthService.MASTER_ADMIN_EMAIL.equalsIgnoreCase(user.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot delete master admin (" + AuthService.MASTER_ADMIN_EMAIL + ")");
+        }
+
+        permanentlyDeleteUserData(id);
 
         Map<String, Object> res = new HashMap<>();
         res.put("success", true);
-        res.put("message", "User " + user.getEmail() + " and all related data deleted successfully.");
+        res.put("message", "User " + user.getEmail() + " and all related data deleted permanently.");
+        return res;
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    @PostMapping("/users/bulk-delete")
+    public Map<String, Object> bulkDeleteUsers(@RequestBody BulkDeleteRequest request) {
+        if (request.getUserIds() == null || request.getUserIds().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No user IDs provided for deletion");
+        }
+
+        int deletedCount = 0;
+        for (Long id : request.getUserIds()) {
+            java.util.Optional<User> userOpt = userRepository.findById(id);
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                if (AuthService.MASTER_ADMIN_EMAIL.equalsIgnoreCase(user.getEmail())) {
+                    continue; // Skip master admin
+                }
+                permanentlyDeleteUserData(id);
+                deletedCount++;
+            }
+        }
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("success", true);
+        res.put("deletedCount", deletedCount);
+        res.put("message", "Successfully deleted " + deletedCount + " user(s) and all associated data permanently.");
         return res;
     }
 

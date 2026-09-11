@@ -22,6 +22,11 @@ export const adminService = {
     return data
   },
 
+  async bulkDeleteUsers(userIds: number[]): Promise<{ success: boolean; deletedCount: number; message: string }> {
+    const { data } = await api.post<{ success: boolean; deletedCount: number; message: string }>('/admin/users/bulk-delete', { userIds })
+    return data
+  },
+
   async getRooms(): Promise<AdminRoomItem[]> {
     const { data } = await api.get<AdminRoomItem[]>('/admin/rooms')
     return data
