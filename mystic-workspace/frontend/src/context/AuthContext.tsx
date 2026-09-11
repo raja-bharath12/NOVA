@@ -5,8 +5,8 @@ import * as authService from '../services/authService'
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (name: string, email: string, password: string) => Promise<void>
+  login: (identifier: string, password: string) => Promise<void>
+  register: (name: string, email: string, password: string, username?: string) => Promise<void>
   logout: () => void
 }
 
@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(stored)
     setLoading(false)
 
-    // Automatically sync real 10-char userTag from backend if authenticated
+    // Automatically sync real userTag from backend if authenticated
     if (localStorage.getItem('mystic_token')) {
       authService.fetchCurrentUserProfile()
         .then((fresh) => {
@@ -31,13 +31,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  async function login(email: string, password: string) {
-    const u = await authService.login(email, password)
+  async function login(identifier: string, password: string) {
+    const u = await authService.login(identifier, password)
     setUser(u)
   }
 
-  async function register(name: string, email: string, password: string) {
-    const u = await authService.register(name, email, password)
+  async function register(name: string, email: string, password: string, username?: string) {
+    const u = await authService.register(name, email, password, username)
     setUser(u)
   }
 

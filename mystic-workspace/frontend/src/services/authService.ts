@@ -36,13 +36,30 @@ export function ensureUserTag(user: User | null): User | null {
   return user
 }
 
-export async function login(email: string, password: string): Promise<User> {
-  const { data } = await api.post<AuthResponse>('/auth/login', { email, password })
+export async function checkUsernameAvailability(username: string): Promise<{ available: boolean; validFormat: boolean; message: string; username: string }> {
+  try {
+    const clean = username.trim().toLowerCase().replace(/^@+/, '')
+    if (!clean) {
+      return { available: false, validFormat: false, message: 'Username is required', username: '' }
+    }
+    const { data } = await api.get('/auth/check-username', { params: { username: clean } })
+    return data
+  } catch {
+    return { available: true, validFormat: true, message: 'Available', username }
+  }
+}
+
+export async function login(emailOrUsername: string, password: string): Promise<User> {
+  const { data } = await api.post<AuthResponse>('/auth/login', { email: emailOrUsername, password })
   return persist(data)
 }
 
-export async function register(name: string, email: string, password: string): Promise<User> {
-  const { data } = await api.post<AuthResponse>('/auth/register', { name, email, password })
+export async function register(name: string, email: string, password: string, username?: string): Promise<User> {
+  const payload: any = { name, email, password }
+  if (username && username.trim()) {
+    payload.username = username.trim().toLowerCase().replace(/^@+/, '')
+  }
+  const { data } = await api.post<AuthResponse>('/auth/register', payload)
   return persist(data)
 }
 

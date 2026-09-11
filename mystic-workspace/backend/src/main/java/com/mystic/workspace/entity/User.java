@@ -31,7 +31,7 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Column(unique = true, length = 16)
+    @Column(unique = true, length = 32)
     private String userTag;
 
     @Builder.Default
