@@ -31,6 +31,7 @@ public class AdminController {
     private final WatchRoomRepository watchRoomRepository;
     private final MeetingRepository meetingRepository;
     private final WatchMediaRepository watchMediaRepository;
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Data
     @Builder
@@ -142,6 +143,7 @@ public class AdminController {
                 .build();
     }
 
+    @org.springframework.transaction.annotation.Transactional
     @DeleteMapping("/users/{id}")
     public Map<String, Object> deleteUser(@PathVariable Long id) {
         User user = userRepository.findById(id)
@@ -151,10 +153,55 @@ public class AdminController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot delete master admin (" + AuthService.MASTER_ADMIN_EMAIL + ")");
         }
 
-        userRepository.delete(user);
+        // 1. Watch Room & Media dependencies
+        entityManager.createNativeQuery("DELETE FROM watch_room_messages WHERE sender_id = :uid OR room_id IN (SELECT id FROM watch_rooms WHERE host_id = :uid OR media_id IN (SELECT id FROM watch_media WHERE owner_id = :uid))")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM watch_room_members WHERE user_id = :uid OR room_id IN (SELECT id FROM watch_rooms WHERE host_id = :uid OR media_id IN (SELECT id FROM watch_media WHERE owner_id = :uid))")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM watch_rooms WHERE host_id = :uid OR media_id IN (SELECT id FROM watch_media WHERE owner_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM watch_media WHERE owner_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // 2. Whiteboard & Meeting dependencies
+        entityManager.createNativeQuery("DELETE FROM whiteboards WHERE owner_id = :uid OR meeting_id IN (SELECT id FROM meetings WHERE host_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM meeting_participants WHERE user_id = :uid OR meeting_id IN (SELECT id FROM meetings WHERE host_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM meetings WHERE host_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // 3. Chat & Message dependencies
+        entityManager.createNativeQuery("DELETE FROM message_reads WHERE user_id = :uid OR message_id IN (SELECT id FROM messages WHERE sender_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM file_metadata WHERE owner_id = :uid OR message_id IN (SELECT id FROM messages WHERE sender_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE messages SET reply_to_id = NULL WHERE reply_to_id IN (SELECT id FROM messages WHERE sender_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM messages WHERE sender_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM conversation_members WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("UPDATE conversations SET created_by_user_id = NULL WHERE created_by_user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM conversations WHERE id NOT IN (SELECT DISTINCT conversation_id FROM conversation_members)")
+                .setParameter("uid", id).executeUpdate();
+
+        // 4. Social & Productivity dependencies
+        entityManager.createNativeQuery("DELETE FROM user_connections WHERE requester_id = :uid OR recipient_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM tasks WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM events WHERE user_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // 5. Delete user record
+        entityManager.createNativeQuery("DELETE FROM users WHERE id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
         Map<String, Object> res = new HashMap<>();
         res.put("success", true);
-        res.put("message", "User " + user.getEmail() + " deleted successfully.");
+        res.put("message", "User " + user.getEmail() + " and all related data deleted successfully.");
         return res;
     }
 
