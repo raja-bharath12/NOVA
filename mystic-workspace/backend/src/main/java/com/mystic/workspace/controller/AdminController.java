@@ -185,7 +185,7 @@ public class AdminController {
         entityManager.createNativeQuery("UPDATE conversations SET created_by_user_id = NULL WHERE created_by_user_id = :uid")
                 .setParameter("uid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM conversations WHERE id NOT IN (SELECT DISTINCT conversation_id FROM conversation_members)")
-                .setParameter("uid", id).executeUpdate();
+                .executeUpdate();
 
         // 4. Social & Productivity dependencies
         entityManager.createNativeQuery("DELETE FROM user_connections WHERE requester_id = :uid OR recipient_id = :uid")
