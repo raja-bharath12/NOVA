@@ -3,18 +3,29 @@ import axios from 'axios'
 const envBackend = (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/api\/?$/, '')
 
+const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+
 export const BACKEND_URL =
   envBackend ||
-  (import.meta.env.PROD
-    ? 'https://mystic-nova.duckdns.org'
+  (isVercel
+    ? ''
+    : import.meta.env.PROD
+    ? 'http://15.207.247.33'
     : typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost'
     ? `${window.location.protocol}//${window.location.hostname}:8080`
     : 'http://localhost:8080')
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) || `${BACKEND_URL}/api`
+
+export const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) || (BACKEND_URL ? `${BACKEND_URL}/api` : '/api')
 
 export const WS_BASE_URL =
-  (import.meta.env.VITE_WS_URL as string | undefined) || `${BACKEND_URL}/ws`
+  (import.meta.env.VITE_WS_URL as string | undefined) ||
+  (BACKEND_URL
+    ? `${BACKEND_URL.replace(/^http/, 'ws')}/ws`
+    : typeof window !== 'undefined'
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
+    : '/ws')
+
 
 const api = axios.create({
   baseURL: API_BASE_URL,
