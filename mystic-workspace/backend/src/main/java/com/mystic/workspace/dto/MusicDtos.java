@@ -82,8 +82,10 @@ public class MusicDtos {
         private String hostEmail;
         private TrackDto currentTrack;
         private Double currentPosition;
+        @com.fasterxml.jackson.annotation.JsonProperty("isPlaying")
         private boolean isPlaying;
         private Double playbackRate;
+        @com.fasterxml.jackson.annotation.JsonProperty("isCollaborative")
         private boolean isCollaborative;
         private String status;
         private Instant lastSyncedAt;
