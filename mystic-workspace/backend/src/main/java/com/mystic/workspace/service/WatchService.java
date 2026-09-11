@@ -3,6 +3,7 @@ package com.mystic.workspace.service;
 import com.mystic.workspace.dto.WatchChatMessageDto;
 import com.mystic.workspace.dto.WatchMediaDto;
 import com.mystic.workspace.dto.WatchRoomDto;
+import com.mystic.workspace.dto.WatchUploadDtos;
 import com.mystic.workspace.entity.*;
 import com.mystic.workspace.repository.*;
 import com.mystic.workspace.service.storage.StorageService;
@@ -18,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,7 +37,156 @@ public class WatchService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     // =========================================================================
-    // 1. MEDIA MANAGEMENT
+    // 1. DIRECT S3 PRESIGNED & MULTIPART UPLOAD (UP TO 5 GB)
+    // =========================================================================
+
+    @Transactional
+    public WatchUploadDtos.InitResponse initiateUpload(User user, WatchUploadDtos.InitRequest request) {
+        if (request.getFileSize() == null || request.getFileSize() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File size must be greater than 0");
+        }
+
+        // Strict 5 GB Validation
+        if (request.getFileSize() > WatchUploadDtos.MAX_VIDEO_FILE_SIZE) {
+            double sizeInGb = request.getFileSize() / (1024.0 * 1024.0 * 1024.0);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    String.format("Video file size (%.2f GB) exceeds the maximum allowed limit of 5.00 GB.", sizeInGb));
+        }
+
+        String rawFilename = (request.getFilename() != null && !request.getFilename().isBlank())
+                ? request.getFilename() : "video.mp4";
+        String effectiveTitle = (request.getTitle() != null && !request.getTitle().isBlank())
+                ? request.getTitle().trim() : rawFilename;
+        String mimeType = (request.getMimeType() != null && !request.getMimeType().isBlank())
+                ? request.getMimeType() : "video/mp4";
+
+        String storageKey = "watch-media/" + UUID.randomUUID().toString() + "/original/" + sanitizeFilename(rawFilename);
+
+        WatchMedia media = WatchMedia.builder()
+                .owner(user)
+                .title(effectiveTitle)
+                .originalFilename(rawFilename)
+                .storageKey(storageKey)
+                .mimeType(mimeType)
+                .fileSize(request.getFileSize())
+                .status(WatchMedia.Status.UPLOADING)
+                .build();
+
+        WatchMedia saved = mediaRepository.save(media);
+
+        String storageType = storageService.getStorageType();
+        long partSize = WatchUploadDtos.DEFAULT_PART_SIZE; // 10MB chunks
+        int totalParts = (int) Math.ceil((double) request.getFileSize() / partSize);
+
+        if ("S3".equalsIgnoreCase(storageType)) {
+            // For smaller files (<100MB) without multipart requested, provide single-PUT presigned URL
+            if (request.getFileSize() < 100L * 1024 * 1024 && (request.getPartCount() == null || request.getPartCount() <= 1)) {
+                String singlePutUrl = storageService.generatePresignedUploadUrl(storageKey, mimeType, Duration.ofMinutes(60));
+                return WatchUploadDtos.InitResponse.builder()
+                        .mediaId(saved.getId())
+                        .storageKey(storageKey)
+                        .uploadId(null)
+                        .singleUploadUrl(singlePutUrl)
+                        .partSize(request.getFileSize())
+                        .totalParts(1)
+                        .storageType("S3")
+                        .build();
+            }
+
+            // For larger videos up to 5 GB, initiate S3 Multipart Upload
+            String uploadId = storageService.initiateMultipartUpload(storageKey, mimeType);
+            return WatchUploadDtos.InitResponse.builder()
+                    .mediaId(saved.getId())
+                    .storageKey(storageKey)
+                    .uploadId(uploadId)
+                    .singleUploadUrl(null)
+                    .partSize(partSize)
+                    .totalParts(totalParts)
+                    .storageType("S3")
+                    .build();
+        }
+
+        // Local storage fallback
+        return WatchUploadDtos.InitResponse.builder()
+                .mediaId(saved.getId())
+                .storageKey(storageKey)
+                .uploadId(null)
+                .singleUploadUrl(null)
+                .partSize(partSize)
+                .totalParts(totalParts)
+                .storageType("LOCAL")
+                .build();
+    }
+
+    public WatchUploadDtos.PartUrlsResponse getPartUploadUrls(User user, WatchUploadDtos.PartUrlsRequest request) {
+        WatchMedia media = getMediaEntity(request.getMediaId());
+        if (!media.getOwner().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this media session");
+        }
+
+        Map<Integer, String> urls = new HashMap<>();
+        for (int partNumber : request.getPartNumbers()) {
+            if (partNumber < 1 || partNumber > 10000) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid part number: " + partNumber);
+            }
+            String partUrl = storageService.generatePresignedPartUploadUrl(
+                    media.getStorageKey(),
+                    request.getUploadId(),
+                    partNumber,
+                    Duration.ofMinutes(60)
+            );
+            urls.put(partNumber, partUrl);
+        }
+
+        return WatchUploadDtos.PartUrlsResponse.builder()
+                .mediaId(media.getId())
+                .uploadId(request.getUploadId())
+                .partUrls(urls)
+                .build();
+    }
+
+    @Transactional
+    public WatchMediaDto completeUpload(User user, WatchUploadDtos.CompleteRequest request) {
+        WatchMedia media = getMediaEntity(request.getMediaId());
+        if (!media.getOwner().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this media session");
+        }
+
+        if (request.getUploadId() != null && !request.getUploadId().isBlank()) {
+            // Complete S3 multipart aggregation
+            storageService.completeMultipartUpload(media.getStorageKey(), request.getUploadId(), request.getParts());
+        }
+
+        // Verify storage existence
+        if (!storageService.exists(media.getStorageKey())) {
+            log.warn("Uploaded media not verified in storage: key={}", media.getStorageKey());
+        }
+
+        media.setStatus(WatchMedia.Status.READY);
+        media.setUpdatedAt(Instant.now());
+        WatchMedia saved = mediaRepository.save(media);
+        log.info("WatchMedia upload completed and verified: id={}, title={}, key={}", saved.getId(), saved.getTitle(), saved.getStorageKey());
+        return toMediaDto(saved);
+    }
+
+    @Transactional
+    public void abortUpload(User user, WatchUploadDtos.AbortRequest request) {
+        WatchMedia media = getMediaEntity(request.getMediaId());
+        if (!media.getOwner().getId().equals(user.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this media session");
+        }
+
+        if (request.getUploadId() != null && !request.getUploadId().isBlank()) {
+            storageService.abortMultipartUpload(media.getStorageKey(), request.getUploadId());
+        }
+
+        media.setStatus(WatchMedia.Status.FAILED);
+        mediaRepository.delete(media);
+        log.info("Aborted WatchMedia upload: id={}, key={}", media.getId(), media.getStorageKey());
+    }
+
+    // =========================================================================
+    // 2. STANDARD MULTIPART UPLOAD (FALLBACK & LOCAL)
     // =========================================================================
 
     @Transactional
@@ -45,16 +195,22 @@ public class WatchService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File cannot be empty");
         }
 
+        // Strict 5 GB Validation
+        if (file.getSize() > WatchUploadDtos.MAX_VIDEO_FILE_SIZE) {
+            double sizeInGb = file.getSize() / (1024.0 * 1024.0 * 1024.0);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    String.format("Video file size (%.2f GB) exceeds the maximum allowed limit of 5.00 GB.", sizeInGb));
+        }
+
         String mimeType = file.getContentType();
         if (mimeType == null || !mimeType.toLowerCase().startsWith("video/")) {
-            // Default to mp4 if unspecified but valid video container
             mimeType = "video/mp4";
         }
 
         String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "video.mp4";
         String effectiveTitle = (title != null && !title.isBlank()) ? title.trim() : originalFilename;
 
-        String storageKey = storageService.store(file);
+        String storageKey = storageService.store(file, "watch-media/" + UUID.randomUUID().toString() + "/original");
 
         WatchMedia media = WatchMedia.builder()
                 .owner(user)
@@ -74,6 +230,7 @@ public class WatchService {
     public List<WatchMediaDto> getUserMedia(User user) {
         return mediaRepository.findByOwnerOrderByCreatedAtDesc(user)
                 .stream()
+                .filter(m -> m.getStatus() == WatchMedia.Status.READY)
                 .map(this::toMediaDto)
                 .collect(Collectors.toList());
     }
@@ -95,23 +252,17 @@ public class WatchService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this media");
         }
 
-        FileMetadata fakeMeta = FileMetadata.builder().storageKey(media.getStorageKey()).build();
-        storageService.delete(fakeMeta);
+        storageService.delete(media.getStorageKey());
         mediaRepository.delete(media);
         log.info("WatchMedia deleted: id={}", mediaId);
     }
 
     public Resource loadMediaResource(WatchMedia media) {
-        FileMetadata meta = FileMetadata.builder()
-                .storageKey(media.getStorageKey())
-                .originalFilename(media.getOriginalFilename())
-                .mimeType(media.getMimeType())
-                .build();
-        return storageService.loadAsResource(meta);
+        return storageService.loadAsResource(media.getStorageKey());
     }
 
     // =========================================================================
-    // 2. WATCH ROOM MANAGEMENT
+    // 3. WATCH ROOM MANAGEMENT
     // =========================================================================
 
     @Transactional
@@ -241,7 +392,7 @@ public class WatchService {
     }
 
     // =========================================================================
-    // 3. CHAT MESSAGES
+    // 4. CHAT MESSAGES
     // =========================================================================
 
     @Transactional
@@ -271,8 +422,13 @@ public class WatchService {
     }
 
     // =========================================================================
-    // 4. HELPERS & MAPPERS
+    // 5. HELPERS & MAPPERS
     // =========================================================================
+
+    private String sanitizeFilename(String filename) {
+        if (filename == null) return "video.mp4";
+        return filename.replaceAll("[\\\\/:*?\"<>|\\s]", "_");
+    }
 
     private String generateUniqueRoomCode() {
         for (int attempt = 0; attempt < 10; attempt++) {
@@ -308,7 +464,6 @@ public class WatchService {
     }
 
     public WatchRoomDto toRoomDto(WatchRoom room) {
-        // Calculate authoritative current playback position with elapsed time if playing
         double authoritativePosition = room.getCurrentPosition();
         if (room.isPlaying() && room.getLastSyncedAt() != null) {
             long elapsedMillis = Duration.between(room.getLastSyncedAt(), Instant.now()).toMillis();

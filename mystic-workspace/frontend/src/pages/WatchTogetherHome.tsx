@@ -64,10 +64,17 @@ export default function WatchTogetherHome() {
       .finally(() => setLoading(false))
   }
 
-  // Handle Video Upload
+  // Handle Video Upload (Up to 5 GB Direct S3 Upload)
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!uploadFile || isUploading) return
+
+    const MAX_VIDEO_SIZE = 5 * 1024 * 1024 * 1024 // 5 GB
+    if (uploadFile.size > MAX_VIDEO_SIZE) {
+      const sizeGb = (uploadFile.size / (1024 * 1024 * 1024)).toFixed(2)
+      showToast(`Selected file (${sizeGb} GB) exceeds the 5.00 GB maximum limit.`, 'warning')
+      return
+    }
 
     setIsUploading(true)
     setUploadProgress(0)
@@ -79,13 +86,14 @@ export default function WatchTogetherHome() {
         (pct) => setUploadProgress(pct)
       )
       setMediaList((prev) => [created, ...prev])
-      showToast('Video uploaded and ready for streaming!')
+      showToast('Video uploaded successfully and ready for streaming!', 'success')
       setShowUploadModal(false)
       setUploadFile(null)
       setUploadTitle('')
       setUploadProgress(0)
     } catch (err: any) {
-      showToast('Failed to upload video', 'warning')
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to upload video'
+      showToast(errorMsg, 'warning')
     } finally {
       setIsUploading(false)
     }
@@ -359,21 +367,39 @@ export default function WatchTogetherHome() {
                 </div>
 
                 <div>
-                  <label className="text-[11px] text-muted block mb-1 font-semibold">Select Video File</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] text-muted font-semibold">Select Video File</label>
+                    <span className="text-[10px] text-cyan-400 font-mono">Max 5.0 GB • Direct S3 Upload</span>
+                  </div>
                   <input
                     type="file"
                     required
                     accept="video/*"
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
-                        setUploadFile(e.target.files[0])
+                        const file = e.target.files[0]
+                        const MAX_SIZE = 5 * 1024 * 1024 * 1024
+                        if (file.size > MAX_SIZE) {
+                          const sizeGb = (file.size / (1024 * 1024 * 1024)).toFixed(2)
+                          showToast(`Selected file (${sizeGb} GB) exceeds 5 GB. Please choose a video up to 5 GB.`, 'warning')
+                          e.target.value = ''
+                          setUploadFile(null)
+                          return
+                        }
+                        setUploadFile(file)
                         if (!uploadTitle) {
-                          setUploadTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ''))
+                          setUploadTitle(file.name.replace(/\.[^/.]+$/, ''))
                         }
                       }
                     }}
                     className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3.5 py-2 text-xs text-silver focus:outline-none focus:border-cyan-400 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-cyan-500/20 file:text-cyan-300 hover:file:bg-cyan-500/30"
                   />
+                  {uploadFile && (
+                    <p className="text-[10px] text-muted font-mono mt-1 flex items-center justify-between">
+                      <span className="truncate max-w-[240px]">{uploadFile.name}</span>
+                      <span className="text-silver font-semibold">{formatFileSize(uploadFile.size)}</span>
+                    </p>
+                  )}
                 </div>
 
                 {/* Upload Progress Bar */}

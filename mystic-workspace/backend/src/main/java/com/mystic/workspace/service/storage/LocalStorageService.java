@@ -1,5 +1,6 @@
 package com.mystic.workspace.service.storage;
 
+import com.mystic.workspace.dto.WatchUploadDtos.CompletedPartDto;
 import com.mystic.workspace.entity.FileMetadata;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.nio.file.*;
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -43,6 +46,11 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public String store(MultipartFile file) {
+        return store(file, "uploads");
+    }
+
+    @Override
+    public String store(MultipartFile file, String keyPrefix) {
         if (file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot store empty file");
         }
@@ -53,16 +61,16 @@ public class LocalStorageService implements StorageService {
             extension = rawFilename.substring(rawFilename.lastIndexOf("."));
         }
 
-        String storageKey = UUID.randomUUID().toString() + extension;
+        String prefix = (keyPrefix != null && !keyPrefix.isBlank()) ? keyPrefix.replaceAll("^/+|/+$", "") : "uploads";
+        String storageKey = prefix + "/" + UUID.randomUUID().toString() + extension;
         Path destinationFile = this.rootLocation.resolve(storageKey).normalize().toAbsolutePath();
 
-        if (!destinationFile.getParent().equals(this.rootLocation.toAbsolutePath())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot store file outside upload directory");
-        }
-
-        try (InputStream inputStream = file.getInputStream()) {
-            Files.copy(inputStream, destinationFile, StandardCopyOption.REPLACE_EXISTING);
-            return storageKey;
+        try {
+            Files.createDirectories(destinationFile.getParent());
+            try (InputStream inputStream = file.getInputStream()) {
+                Files.copy(inputStream, destinationFile, StandardCopyOption.REPLACE_EXISTING);
+                return storageKey;
+            }
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to store file", e);
         }
@@ -70,9 +78,17 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public Resource loadAsResource(FileMetadata metadata) {
+        if (metadata == null || metadata.getStorageKey() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid file metadata");
+        }
+        return loadAsResource(metadata.getStorageKey());
+    }
+
+    @Override
+    public Resource loadAsResource(String storageKey) {
         try {
             if (rootLocation != null) {
-                Path file = rootLocation.resolve(metadata.getStorageKey()).normalize();
+                Path file = rootLocation.resolve(storageKey).normalize();
                 Resource resource = new UrlResource(file.toUri());
                 if (resource.exists() && resource.isReadable()) {
                     return resource;
@@ -80,20 +96,20 @@ public class LocalStorageService implements StorageService {
             }
 
             // Fallback 1: ./uploads
-            Path fallback1 = Paths.get("./uploads", metadata.getStorageKey()).toAbsolutePath().normalize();
+            Path fallback1 = Paths.get("./uploads", storageKey).toAbsolutePath().normalize();
             Resource res1 = new UrlResource(fallback1.toUri());
             if (res1.exists() && res1.isReadable()) {
                 return res1;
             }
 
             // Fallback 2: /tmp/uploads
-            Path fallback2 = Paths.get(System.getProperty("java.io.tmpdir"), "uploads", metadata.getStorageKey()).toAbsolutePath().normalize();
+            Path fallback2 = Paths.get(System.getProperty("java.io.tmpdir"), "uploads", storageKey).toAbsolutePath().normalize();
             Resource res2 = new UrlResource(fallback2.toUri());
             if (res2.exists() && res2.isReadable()) {
                 return res2;
             }
 
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Could not read file: " + metadata.getOriginalFilename());
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Could not read file: " + storageKey);
         } catch (MalformedURLException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Could not read file", e);
         }
@@ -101,8 +117,16 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public void delete(FileMetadata metadata) {
+        if (metadata != null && metadata.getStorageKey() != null) {
+            delete(metadata.getStorageKey());
+        }
+    }
+
+    @Override
+    public void delete(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) return;
         try {
-            Path file = rootLocation.resolve(metadata.getStorageKey()).normalize();
+            Path file = rootLocation.resolve(storageKey).normalize();
             Files.deleteIfExists(file);
         } catch (IOException ignored) {
         }
@@ -111,5 +135,47 @@ public class LocalStorageService implements StorageService {
     @Override
     public String getDirectDownloadUrl(FileMetadata metadata) {
         return null;
+    }
+
+    @Override
+    public String getDirectDownloadUrl(String storageKey, Duration duration) {
+        return null;
+    }
+
+    @Override
+    public String generatePresignedUploadUrl(String storageKey, String contentType, Duration duration) {
+        return null;
+    }
+
+    @Override
+    public String initiateMultipartUpload(String storageKey, String contentType) {
+        return "local-upload-" + UUID.randomUUID();
+    }
+
+    @Override
+    public String generatePresignedPartUploadUrl(String storageKey, String uploadId, int partNumber, Duration duration) {
+        return null;
+    }
+
+    @Override
+    public void completeMultipartUpload(String storageKey, String uploadId, List<CompletedPartDto> parts) {
+        // No-op for local mock
+    }
+
+    @Override
+    public void abortMultipartUpload(String storageKey, String uploadId) {
+        // No-op for local mock
+    }
+
+    @Override
+    public boolean exists(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) return false;
+        Path file = rootLocation.resolve(storageKey).normalize();
+        return Files.exists(file);
+    }
+
+    @Override
+    public String getStorageType() {
+        return "LOCAL";
     }
 }

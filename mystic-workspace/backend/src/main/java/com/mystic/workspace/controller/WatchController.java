@@ -3,6 +3,7 @@ package com.mystic.workspace.controller;
 import com.mystic.workspace.dto.WatchChatMessageDto;
 import com.mystic.workspace.dto.WatchMediaDto;
 import com.mystic.workspace.dto.WatchRoomDto;
+import com.mystic.workspace.dto.WatchUploadDtos;
 import com.mystic.workspace.entity.User;
 import com.mystic.workspace.entity.WatchMedia;
 import com.mystic.workspace.repository.UserRepository;
@@ -34,7 +35,44 @@ public class WatchController {
     private final JwtService jwtService;
 
     // =========================================================================
-    // 1. MEDIA ENDPOINTS
+    // 1. DIRECT S3 PRESIGNED & MULTIPART UPLOAD ENDPOINTS (UP TO 5 GB)
+    // =========================================================================
+
+    @PostMapping("/media/upload-init")
+    public WatchUploadDtos.InitResponse initiateUpload(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody WatchUploadDtos.InitRequest request
+    ) {
+        return watchService.initiateUpload(currentUser(principal), request);
+    }
+
+    @PostMapping("/media/upload-part-urls")
+    public WatchUploadDtos.PartUrlsResponse getPartUploadUrls(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody WatchUploadDtos.PartUrlsRequest request
+    ) {
+        return watchService.getPartUploadUrls(currentUser(principal), request);
+    }
+
+    @PostMapping("/media/upload-complete")
+    public WatchMediaDto completeUpload(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody WatchUploadDtos.CompleteRequest request
+    ) {
+        return watchService.completeUpload(currentUser(principal), request);
+    }
+
+    @PostMapping("/media/upload-abort")
+    public ResponseEntity<Void> abortUpload(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody WatchUploadDtos.AbortRequest request
+    ) {
+        watchService.abortUpload(currentUser(principal), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    // =========================================================================
+    // 2. STANDARD MEDIA ENDPOINTS
     // =========================================================================
 
     @PostMapping(value = "/media/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -92,7 +130,6 @@ public class WatchController {
 
         List<HttpRange> ranges = headers.getRange();
         if (ranges.isEmpty()) {
-            // Full stream fallback
             return ResponseEntity.ok()
                     .contentType(mediaType)
                     .contentLength(contentLength)
@@ -116,7 +153,7 @@ public class WatchController {
     }
 
     // =========================================================================
-    // 2. ROOM ENDPOINTS
+    // 3. ROOM ENDPOINTS
     // =========================================================================
 
     @Data
@@ -172,7 +209,7 @@ public class WatchController {
     }
 
     // =========================================================================
-    // 3. AUTH HELPER
+    // 4. AUTH HELPER
     // =========================================================================
 
     private User currentUser(UserPrincipal principal) {
