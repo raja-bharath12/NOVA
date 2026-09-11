@@ -37,6 +37,8 @@ public class UserController {
                 .name(user.getName())
                 .email(user.getEmail())
                 .userTag(user.getUserTag())
+                .role(user.getRole() != null ? user.getRole() : "USER")
+                .createdAt(user.getCreatedAt())
                 .status(presenceService.getUserStatus(user.getId()))
                 .build();
     }

@@ -7,6 +7,7 @@ import com.mystic.workspace.entity.User;
 import com.mystic.workspace.repository.UserRepository;
 import com.mystic.workspace.security.JwtService;
 import com.mystic.workspace.security.UserPrincipal;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,6 +22,7 @@ import java.security.SecureRandom;
 @RequiredArgsConstructor
 public class AuthService {
 
+    public static final String MASTER_ADMIN_EMAIL = "bharathraja171@gmail.com";
     private static final String TAG_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -28,6 +30,19 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+
+    @PostConstruct
+    public void initMasterAdmin() {
+        try {
+            userRepository.findByEmail(MASTER_ADMIN_EMAIL.toLowerCase()).ifPresent(user -> {
+                if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
+                    user.setRole("ADMIN");
+                    userRepository.save(user);
+                }
+            });
+        } catch (Exception ignored) {
+        }
+    }
 
     public static boolean isValidUsernameFormat(String username) {
         if (username == null) return false;
@@ -92,7 +107,8 @@ public class AuthService {
     }
 
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail().trim().toLowerCase())) {
+        String normalizedEmail = request.getEmail().trim().toLowerCase();
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists");
         }
 
@@ -110,11 +126,14 @@ public class AuthService {
             chosenTag = generateUsernameFromName(request.getName(), request.getEmail());
         }
 
+        boolean isMasterAdmin = MASTER_ADMIN_EMAIL.equalsIgnoreCase(normalizedEmail);
+
         User user = User.builder()
                 .name(request.getName().trim())
-                .email(request.getEmail().trim().toLowerCase())
+                .email(normalizedEmail)
                 .password(passwordEncoder.encode(request.getPassword()))
                 .userTag(chosenTag)
+                .role(isMasterAdmin ? "ADMIN" : "USER")
                 .build();
 
         User saved = userRepository.save(user);
@@ -127,6 +146,7 @@ public class AuthService {
                 .name(saved.getName())
                 .email(saved.getEmail())
                 .userTag(saved.getUserTag())
+                .role(saved.getRole())
                 .build();
     }
 
@@ -148,6 +168,12 @@ public class AuthService {
             user = userRepository.save(user);
         }
 
+        // Auto-promote master admin email on login if not already ADMIN
+        if (MASTER_ADMIN_EMAIL.equalsIgnoreCase(user.getEmail()) && !"ADMIN".equalsIgnoreCase(user.getRole())) {
+            user.setRole("ADMIN");
+            user = userRepository.save(user);
+        }
+
         UserPrincipal principal = new UserPrincipal(user);
         String token = jwtService.generateToken(principal);
 
@@ -157,6 +183,7 @@ public class AuthService {
                 .name(user.getName())
                 .email(user.getEmail())
                 .userTag(user.getUserTag())
+                .role(user.getRole() != null ? user.getRole() : "USER")
                 .build();
     }
 }

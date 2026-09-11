@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -24,6 +25,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -64,10 +66,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/files/**", "/files/**", "/api/api/files/**").permitAll()
                 .requestMatchers("/api/watch/media/*/stream", "/watch/media/*/stream", "/api/api/watch/media/*/stream", "/api/watch/media/*/hls/**").permitAll()
                 .requestMatchers("/api/watch/rooms/**", "/watch/rooms/**", "/api/api/watch/rooms/**").permitAll()
+                .requestMatchers("/api/admin/**", "/admin/**", "/api/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
-
-
             .headers(headers -> headers.frameOptions(frame -> frame.disable()))
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

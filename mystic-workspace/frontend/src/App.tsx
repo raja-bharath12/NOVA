@@ -20,6 +20,7 @@ import Whiteboard from './pages/Whiteboard'
 import Settings from './pages/Settings'
 import WatchTogetherHome from './pages/WatchTogetherHome'
 import WatchRoomPage from './pages/WatchRoomPage'
+import AdminDashboard from './pages/AdminDashboard'
 
 export default function App() {
   return (
@@ -146,6 +147,16 @@ export default function App() {
                 <ProtectedRoute>
                   <AppLayout>
                     <Whiteboard />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <AdminDashboard />
                   </AppLayout>
                 </ProtectedRoute>
               }

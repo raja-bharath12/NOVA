@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Bell, MessageSquare, Sparkles, Command, Sun, Moon, Phone, CheckSquare, Trash2, Calendar, UserPlus, UserCheck, Check, X } from 'lucide-react'
+import { Search, Bell, MessageSquare, Sparkles, Command, Sun, Moon, Phone, CheckSquare, Trash2, Calendar, UserPlus, UserCheck, Check, X, Shield } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
@@ -105,28 +105,16 @@ export default function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex items-center justify-between px-4 py-3 sm:px-6 md:px-10 md:py-5 backdrop-blur-md bg-void-950/50 border-b border-white/[0.04]">
-        {/* Mobile Brand Logo & Name */}
-        <div className="flex md:hidden items-center gap-2.5">
-          <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-400 to-cyan-400 shadow-glow flex-shrink-0" />
-          <span className="font-display font-bold text-xs tracking-[0.14em] text-gradient">
-            MYSTIC
-          </span>
-        </div>
-
-        {/* Desktop Search Trigger Bar */}
+      <header className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 sm:px-6 relative z-20 bg-void-950/40 backdrop-blur-md flex-shrink-0">
         <div
           onClick={() => setShowSearchModal(true)}
-          className="relative hidden sm:flex items-center w-full max-w-xs cursor-pointer group"
+          className="relative flex-1 max-w-sm cursor-pointer group"
         >
-          <Search
-            size={16}
-            className="absolute left-3 text-muted group-hover:text-purple-400 transition-colors"
-          />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted group-hover:text-silver transition-colors" />
           <input
             type="text"
             readOnly
-            placeholder="Search workspace..."
+            placeholder="Search workspace (Ctrl + K)..."
             className="w-full bg-white/[0.03] group-hover:bg-white/[0.06] border border-white/[0.06] group-hover:border-purple-500/40 rounded-xl pl-9 pr-14 py-2 text-sm text-silver placeholder:text-muted cursor-pointer transition-all"
           />
           <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono bg-white/10 text-white/50 px-1.5 py-0.5 rounded border border-white/10 flex items-center gap-0.5">
@@ -144,6 +132,20 @@ export default function TopBar() {
           >
             <Search size={16} />
           </motion.button>
+
+          {/* Admin Control Center Trigger Button (for Admins) */}
+          {user?.role === 'ADMIN' && (
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              whileHover={{ scale: 1.05 }}
+              onClick={() => navigate('/admin')}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600/25 via-fuchsia-600/25 to-cyan-500/25 hover:from-violet-600/40 hover:to-cyan-500/40 text-cyan-300 border border-violet-400/40 text-xs font-semibold shadow-glow transition-all"
+              title="Open Admin Command Center"
+            >
+              <Shield size={14} className="text-cyan-300" />
+              <span className="hidden sm:inline">Admin</span>
+            </motion.button>
+          )}
 
           {/* AI Co-Pilot Trigger Button */}
           <motion.button

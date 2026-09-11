@@ -3,6 +3,8 @@ export interface User {
   name: string
   email: string
   userTag?: string
+  role?: 'ADMIN' | 'USER'
+  createdAt?: string
   status?: 'ONLINE' | 'AWAY' | 'OFFLINE'
   connectionStatus?: 'NONE' | 'PENDING_SENT' | 'PENDING_RECEIVED' | 'CONNECTED'
   connectionId?: number
@@ -369,5 +371,40 @@ export interface WatchControlSignal {
   payload?: any
 }
 
+export interface AdminStats {
+  totalUsers: number
+  totalMessages: number
+  totalFiles: number
+  totalWatchRooms: number
+  totalMeetings: number
+  totalMediaUploads: number
+  activeWatchRooms: number
+  activeMeetings: number
+  freeMemoryMB: number
+  totalMemoryMB: number
+  maxMemoryMB: number
+  availableProcessors: number
+  masterAdminEmail: string
+}
 
+export interface AdminRoomItem {
+  type: 'WATCH' | 'MEET'
+  roomCode: string
+  title: string
+  hostName: string
+  hostEmail: string
+  status: string
+  memberCount: number
+  createdAt: string
+}
 
+export interface AdminFileItem {
+  id: number
+  filename: string
+  fileSize: number
+  mimeType: string
+  storageType: string
+  createdAt: string
+  ownerName: string
+  ownerEmail: string
+}

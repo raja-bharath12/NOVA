@@ -35,6 +35,14 @@ public class User {
     private String userTag;
 
     @Builder.Default
+    @Column(nullable = false, length = 50)
+    private String role = "USER";
+
+    @Builder.Default
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
+
+    public boolean isAdmin() {
+        return "ADMIN".equalsIgnoreCase(this.role);
+    }
 }

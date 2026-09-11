@@ -16,12 +16,20 @@ import {
   Sparkles,
   Hash,
   Film,
+  Shield,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
 import { generateFallbackTag } from '../../services/authService'
 
-const NAV_ITEMS = [
+interface NavItem {
+  to: string
+  label: string
+  icon: any
+  end?: boolean
+}
+
+const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
@@ -33,7 +41,7 @@ const NAV_ITEMS = [
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ]
 
-const MOBILE_PRIMARY_TABS = [
+const MOBILE_PRIMARY_TABS: NavItem[] = [
   { to: '/', label: 'Home', icon: LayoutDashboard, end: true },
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
   { to: '/chat', label: 'Chat', icon: MessageSquare },
@@ -56,8 +64,19 @@ export default function Sidebar() {
   const [showMoreSheet, setShowMoreSheet] = useState(false)
 
   const effectiveTag = user?.userTag || (user ? generateFallbackTag(user.id, user.email) : '')
+  const isAdmin = user?.role === 'ADMIN'
 
-  const isMoreActive = MORE_SHEET_ITEMS.some((item) => location.pathname === item.to)
+  const desktopNavItems: NavItem[] = [
+    ...NAV_ITEMS,
+    ...(isAdmin ? [{ to: '/admin', label: 'Admin Portal', icon: Shield, end: false }] : []),
+  ]
+
+  const moreSheetItems = [
+    ...(isAdmin ? [{ to: '/admin', label: 'Admin Portal', icon: Shield, desc: 'Root telemetry & controls' }] : []),
+    ...MORE_SHEET_ITEMS,
+  ]
+
+  const isMoreActive = moreSheetItems.some((item) => location.pathname === item.to)
 
   const handleNavigateMore = (to: string) => {
     setShowMoreSheet(false)
@@ -77,7 +96,7 @@ export default function Sidebar() {
           </div>
 
           <nav className="flex-1 flex flex-col gap-1 px-4 mt-4">
-            {NAV_ITEMS.map((item) => (
+            {desktopNavItems.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end}>
                 {({ isActive }) => (
                   <motion.div
@@ -226,7 +245,7 @@ export default function Sidebar() {
 
               {/* Sheet Grid Items */}
               <div className="grid grid-cols-2 gap-3">
-                {MORE_SHEET_ITEMS.map((item) => {
+                {moreSheetItems.map((item) => {
                   const Icon = item.icon
                   const active = location.pathname === item.to
 
