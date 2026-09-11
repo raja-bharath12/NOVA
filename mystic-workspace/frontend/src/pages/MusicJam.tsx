@@ -202,46 +202,67 @@ export default function MusicJam() {
     // Avoid reacting to own actions if already applied
     if (action.senderId === user?.id && action.type !== 'QUEUE_CHANGE' && action.type !== 'TRACK_CHANGE' && action.type !== 'NEXT') return
 
+    // Compute expected target position with timestamp latency compensation
+    let targetPos = action.position ?? audioRef.current.currentTime
+    const rate = action.playbackRate || 1.0
+    if (action.timestamp && (action.type === 'PLAY' || action.type === 'SYNC' || action.isPlaying)) {
+      const elapsedSec = (Date.now() - action.timestamp) / 1000.0
+      if (elapsedSec > 0 && elapsedSec < 60) {
+        targetPos += elapsedSec * rate
+      }
+    }
+
+    const currentDrift = targetPos - audioRef.current.currentTime
+
     switch (action.type) {
       case 'PLAY':
-        if (action.position !== undefined && audioRef.current) {
-          const drift = Math.abs(audioRef.current.currentTime - action.position)
-          if (drift > 0.4) {
-            audioRef.current.currentTime = action.position
-          }
+        // Tiered Audio Drift:
+        // > 400ms: Seek jump
+        // 100ms - 400ms: Smooth rate nudge (no audio glitch)
+        // < 100ms: Keep smooth
+        if (Math.abs(currentDrift) > 0.4) {
+          audioRef.current.currentTime = Math.max(0, targetPos)
+          audioRef.current.playbackRate = rate
+        } else if (Math.abs(currentDrift) > 0.1) {
+          const nudge = currentDrift > 0 ? Math.min(rate * 1.05, 1.5) : Math.max(rate * 0.95, 0.7)
+          audioRef.current.playbackRate = nudge
+          setTimeout(() => {
+            if (audioRef.current) audioRef.current.playbackRate = rate
+          }, 1000)
+        } else {
+          audioRef.current.playbackRate = rate
         }
-        if (audioRef.current && audioRef.current.paused) {
-          audioRef.current.play().catch(() => {})
+
+        if (audioRef.current.paused) {
+          audioRef.current.play().catch((err) => console.warn('Audio play blocked by browser policy:', err))
         }
         setIsPlaying(true)
         break
 
       case 'PAUSE':
-        if (audioRef.current) {
-          if (action.position !== undefined) {
-            audioRef.current.currentTime = action.position
-            setCurrentTime(action.position)
-          }
-          if (!audioRef.current.paused) {
-            audioRef.current.pause()
-          }
+        if (action.position !== undefined) {
+          audioRef.current.currentTime = action.position
+          setCurrentTime(action.position)
+        }
+        if (!audioRef.current.paused) {
+          audioRef.current.pause()
         }
         setIsPlaying(false)
         break
 
       case 'SEEK':
-        if (action.position !== undefined && audioRef.current) {
-          audioRef.current.currentTime = action.position
-          setCurrentTime(action.position)
-          if (action.isPlaying && audioRef.current.paused) {
-            audioRef.current.play().catch(() => {})
-            setIsPlaying(true)
-          } else if (action.isPlaying === false && !audioRef.current.paused) {
-            audioRef.current.pause()
-            setIsPlaying(false)
-          }
+      case 'SYNC':
+        audioRef.current.currentTime = Math.max(0, targetPos)
+        setCurrentTime(targetPos)
+        if (action.isPlaying && audioRef.current.paused) {
+          audioRef.current.play().catch(() => {})
+          setIsPlaying(true)
+        } else if (action.isPlaying === false && !audioRef.current.paused) {
+          audioRef.current.pause()
+          setIsPlaying(false)
         }
         break
+
 
       case 'TRACK_CHANGE':
       case 'NEXT':

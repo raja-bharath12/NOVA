@@ -147,21 +147,38 @@ export default function WatchPlayer({
 
     // Compute expected target position if server timestamp is present
     let targetPos = position ?? video.currentTime
+    const rate = playbackRate || 1.0
     if (remoteIsPlaying && serverTimestamp) {
       const elapsedSec = (Date.now() - new Date(serverTimestamp).getTime()) / 1000.0
-      if (elapsedSec > 0 && elapsedSec < 60) {
-        targetPos += elapsedSec * (playbackRate || 1.0)
+      if (elapsedSec > 0 && elapsedSec < 120) {
+        targetPos += elapsedSec * rate
       }
     }
 
-    // Apply seek/drift correction if drift exceeds 1.5 seconds
-    if (position !== undefined && Math.abs(video.currentTime - targetPos) > 1.5) {
-      video.currentTime = targetPos
+    const currentDrift = targetPos - video.currentTime
+
+    // Tiered Drift Correction:
+    // 1. Drift > 1.5s: Immediate Seek Jump
+    // 2. Drift between 0.1s and 1.5s: Smooth playback rate nudge (no audible glitch)
+    // 3. Drift < 0.1s: Perfect sync, maintain room rate
+    if (Math.abs(currentDrift) > 1.5) {
+      video.currentTime = Math.max(0, targetPos)
+      video.playbackRate = rate
+    } else if (Math.abs(currentDrift) > 0.2 && remoteIsPlaying) {
+      const nudgeRate = currentDrift > 0 ? Math.min(rate * 1.08, 2.0) : Math.max(rate * 0.92, 0.5)
+      video.playbackRate = nudgeRate
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.playbackRate = rate
+        }
+      }, 1200)
+    } else {
+      video.playbackRate = rate
     }
 
     if (type === 'PLAY') {
       if (video.paused) {
-        video.play().catch(() => {})
+        video.play().catch((err) => console.warn('Video play blocked by browser policy:', err))
       }
       setIsPlaying(true)
     } else if (type === 'PAUSE') {
@@ -187,10 +204,11 @@ export default function WatchPlayer({
 
     const timer = setTimeout(() => {
       isApplyingRemoteUpdateRef.current = false
-    }, 150)
+    }, 200)
 
     return () => clearTimeout(timer)
   }, [incomingSignal])
+
 
   // Auto-hide custom controls when mouse is inactive
   const handleMouseMove = () => {
