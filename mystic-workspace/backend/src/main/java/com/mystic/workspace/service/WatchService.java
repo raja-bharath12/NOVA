@@ -375,6 +375,10 @@ public class WatchService {
             throw new ResponseStatusException(HttpStatus.GONE, "This Watch Room has ended");
         }
 
+        if (user == null) {
+            return toRoomDto(room);
+        }
+
         WatchRoomMember member = memberRepository.findByRoomAndUser(room, user).orElse(null);
         if (member == null) {
             WatchRoomMember.Role role = room.getHost().getId().equals(user.getId())

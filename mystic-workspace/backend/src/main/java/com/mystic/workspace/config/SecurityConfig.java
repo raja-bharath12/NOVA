@@ -63,6 +63,7 @@ public class SecurityConfig {
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/api/files/**", "/files/**", "/api/api/files/**").permitAll()
                 .requestMatchers("/api/watch/media/*/stream", "/watch/media/*/stream", "/api/api/watch/media/*/stream", "/api/watch/media/*/hls/**").permitAll()
+                .requestMatchers("/api/watch/rooms/**", "/watch/rooms/**", "/api/api/watch/rooms/**").permitAll()
                 .anyRequest().authenticated()
             )
 

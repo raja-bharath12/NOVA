@@ -45,7 +45,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('mystic_token')
       localStorage.removeItem('mystic_user')
-      window.location.href = '/login'
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/watch/') && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }

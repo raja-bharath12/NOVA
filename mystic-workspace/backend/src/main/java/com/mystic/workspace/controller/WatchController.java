@@ -202,7 +202,8 @@ public class WatchController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable String roomCode
     ) {
-        return watchService.joinRoom(currentUser(principal), roomCode);
+        User user = principal != null ? userRepository.findById(principal.getId()).orElse(null) : null;
+        return watchService.joinRoom(user, roomCode);
     }
 
     @PostMapping("/rooms/{roomCode}/leave")
@@ -210,7 +211,10 @@ public class WatchController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable String roomCode
     ) {
-        watchService.leaveRoom(currentUser(principal), roomCode);
+        User user = principal != null ? userRepository.findById(principal.getId()).orElse(null) : null;
+        if (user != null) {
+            watchService.leaveRoom(user, roomCode);
+        }
         return ResponseEntity.ok().build();
     }
 

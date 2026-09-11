@@ -128,11 +128,7 @@ export default function App() {
             />
             <Route
               path="/watch/:roomCode"
-              element={
-                <ProtectedRoute>
-                  <WatchRoomPage />
-                </ProtectedRoute>
-              }
+              element={<WatchRoomPage />}
             />
             <Route
               path="/files"
