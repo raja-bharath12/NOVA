@@ -61,9 +61,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**", "/auth/**", "/api/api/auth/**").permitAll()
                 .requestMatchers("/api/livekit/**", "/livekit/**", "/api/api/livekit/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/files/**", "/files/**", "/api/api/files/**").permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/watch/media/*/stream", "/api/watch/media/*/hls/**").permitAll()
+                .requestMatchers("/api/files/**", "/files/**", "/api/api/files/**").permitAll()
+                .requestMatchers("/api/watch/media/*/stream", "/watch/media/*/stream", "/api/api/watch/media/*/stream", "/api/watch/media/*/hls/**").permitAll()
                 .anyRequest().authenticated()
             )
 
