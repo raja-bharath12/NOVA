@@ -18,6 +18,8 @@ import MeetingRoom from './pages/MeetingRoom'
 import Files from './pages/Files'
 import Whiteboard from './pages/Whiteboard'
 import Settings from './pages/Settings'
+import WatchTogetherHome from './pages/WatchTogetherHome'
+import WatchRoomPage from './pages/WatchRoomPage'
 
 export default function App() {
   return (
@@ -111,6 +113,24 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <MeetingRoom />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/watch"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <WatchTogetherHome />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/watch/:roomCode"
+              element={
+                <ProtectedRoute>
+                  <WatchRoomPage />
                 </ProtectedRoute>
               }
             />

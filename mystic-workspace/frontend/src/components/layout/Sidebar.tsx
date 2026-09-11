@@ -15,6 +15,7 @@ import {
   X,
   Sparkles,
   Hash,
+  Film,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { to: '/calendar', label: 'Calendar', icon: CalendarDays },
   { to: '/chat', label: 'Chat', icon: MessageSquare },
   { to: '/meetings', label: 'Meetings', icon: Video },
+  { to: '/watch', label: 'Watch Together', icon: Film },
   { to: '/files', label: 'Files', icon: FolderOpen },
   { to: '/whiteboard', label: 'Whiteboard', icon: PenTool },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
@@ -39,6 +41,7 @@ const MOBILE_PRIMARY_TABS = [
 ]
 
 const MORE_SHEET_ITEMS = [
+  { to: '/watch', label: 'Watch Together', icon: Film, desc: 'Sync streaming & live chat' },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, desc: 'Events & schedule' },
   { to: '/files', label: 'Files', icon: FolderOpen, desc: 'Cloud storage & media' },
   { to: '/whiteboard', label: 'Whiteboard', icon: PenTool, desc: 'Visual canvases' },

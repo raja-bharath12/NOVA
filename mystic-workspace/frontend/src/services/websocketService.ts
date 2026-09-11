@@ -1,7 +1,7 @@
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import { WS_BASE_URL } from './api'
-import type { CallSignal, MeetingSignal, Message, PresenceEvent, ReadReceiptEvent, TypingEvent } from '../types'
+import type { CallSignal, MeetingSignal, Message, PresenceEvent, ReadReceiptEvent, TypingEvent, WatchControlSignal, WatchChatMessage } from '../types'
 
 interface ActiveSub {
   id: string
@@ -363,6 +363,59 @@ class WebSocketService {
       })
     } catch (err) {
       console.warn('Failed to publish meeting chat', err)
+    }
+  }
+
+  // ===== Watch Together Subscriptions & Publishers =====
+
+  subscribeToWatchRoom(
+    roomCode: string,
+    onEvent: (event: WatchControlSignal | WatchChatMessage | any) => void
+  ): () => void {
+    const topic = `/topic/watch.${roomCode}`
+    return this.registerSubscription(topic, (imsg: IMessage) => {
+      try {
+        const data = JSON.parse(imsg.body)
+        onEvent(data)
+      } catch (err) {
+        console.error(`Failed to parse Watch Together message from ${topic}`, err)
+      }
+    })
+  }
+
+  sendWatchControl(roomCode: string, signal: Partial<WatchControlSignal>) {
+    if (!this.client || !this.connected) return
+    try {
+      this.client.publish({
+        destination: `/app/watch/${roomCode}/control`,
+        body: JSON.stringify(signal),
+      })
+    } catch (err) {
+      console.warn('Failed to publish watch control signal', err)
+    }
+  }
+
+  sendWatchChat(roomCode: string, content: string) {
+    if (!this.client || !this.connected) return
+    try {
+      this.client.publish({
+        destination: `/app/watch/${roomCode}/chat`,
+        body: JSON.stringify({ content }),
+      })
+    } catch (err) {
+      console.warn('Failed to publish watch chat', err)
+    }
+  }
+
+  sendWatchPresence(roomCode: string, action: 'JOIN' | 'LEAVE' | 'HEARTBEAT') {
+    if (!this.client || !this.connected) return
+    try {
+      this.client.publish({
+        destination: `/app/watch/${roomCode}/presence`,
+        body: JSON.stringify({ action }),
+      })
+    } catch (err) {
+      console.warn('Failed to publish watch presence', err)
     }
   }
 }

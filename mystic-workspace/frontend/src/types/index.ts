@@ -301,4 +301,73 @@ export interface AppNotification {
   requesterId?: number
 }
 
+// ===== WATCH TOGETHER TYPES =====
+
+export interface WatchMedia {
+  id: number
+  title: string
+  originalFilename: string
+  storageKey: string
+  mimeType: string
+  fileSize: number
+  duration?: number
+  thumbnailUrl?: string
+  manifestUrl?: string
+  streamUrl: string
+  status: 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED'
+  ownerId: number
+  ownerName: string
+  createdAt: string
+}
+
+export interface WatchRoomMemberInfo {
+  userId: number
+  name: string
+  email: string
+  userTag?: string
+  role: 'HOST' | 'PARTICIPANT'
+  joinedAt: string
+}
+
+export interface WatchRoom {
+  id: number
+  roomCode: string
+  title: string
+  status: 'WAITING' | 'ACTIVE' | 'ENDED'
+  media: WatchMedia
+  hostId: number
+  hostName: string
+  currentPosition: number
+  isPlaying: boolean
+  playbackRate: number
+  lastSyncedAt: string
+  members: WatchRoomMemberInfo[]
+  createdAt: string
+}
+
+export interface WatchChatMessage {
+  id?: number
+  roomCode: string
+  senderId: number
+  senderName: string
+  senderEmail?: string
+  senderTag?: string
+  content: string
+  createdAt: string
+}
+
+export interface WatchControlSignal {
+  type: 'PLAY' | 'PAUSE' | 'SEEK' | 'SYNC' | 'JOIN' | 'LEAVE' | 'ROOM_ENDED' | 'HOST_TRANSFER' | 'CHAT_MESSAGE'
+  roomCode: string
+  position?: number
+  isPlaying?: boolean
+  playbackRate?: number
+  serverTimestamp?: string
+  senderId?: number
+  senderName?: string
+  senderTag?: string
+  payload?: any
+}
+
+
 
