@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Bell, MessageSquare, Sparkles, Command, Sun, Moon, Phone, CheckSquare, Trash2, Calendar, UserPlus, UserCheck, Check, X, Shield } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
 import type { AppNotification } from '../../types'
@@ -12,6 +12,7 @@ export default function TopBar() {
   const { user } = useAuth()
   const { notifications, unreadNotifsCount, clearNotifications, dismissNotification, acceptConnectionRequest, declineConnectionRequest } = useCall()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [showDropdown, setShowDropdown] = useState(false)
   const [showSearchModal, setShowSearchModal] = useState(false)
@@ -19,6 +20,12 @@ export default function TopBar() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const initials = user?.name?.split(' ').map((n) => n[0]).slice(0, 2).join('') ?? '?'
+
+  // Search bar only appears on Dashboard (/), Tasks (/tasks), Calendar (/calendar), Whiteboard (/whiteboard)
+  const allowedSearchRoutes = ['/', '/tasks', '/calendar', '/whiteboard']
+  const showSearchBar = allowedSearchRoutes.some((route) =>
+    route === '/' ? location.pathname === '/' : location.pathname.startsWith(route)
+  )
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -106,32 +113,39 @@ export default function TopBar() {
   return (
     <>
       <header className="h-14 border-b border-white/[0.06] flex items-center justify-between px-4 sm:px-6 relative z-20 bg-void-950/40 backdrop-blur-md flex-shrink-0">
-        <div
-          onClick={() => setShowSearchModal(true)}
-          className="relative flex-1 max-w-sm cursor-pointer group"
-        >
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted group-hover:text-silver transition-colors" />
-          <input
-            type="text"
-            readOnly
-            placeholder="Search workspace (Ctrl + K)..."
-            className="w-full bg-white/[0.03] group-hover:bg-white/[0.06] border border-white/[0.06] group-hover:border-purple-500/40 rounded-xl pl-9 pr-14 py-2 text-sm text-silver placeholder:text-muted cursor-pointer transition-all"
-          />
-          <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono bg-white/10 text-white/50 px-1.5 py-0.5 rounded border border-white/10 flex items-center gap-0.5">
-            <Command size={10} />K
-          </kbd>
-        </div>
+        {showSearchBar ? (
+          <div
+            onClick={() => setShowSearchModal(true)}
+            className="relative flex-1 max-w-sm cursor-pointer group"
+          >
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted group-hover:text-silver transition-colors" />
+            <input
+              type="text"
+              readOnly
+              placeholder="Search workspace (Ctrl + K)..."
+              className="w-full bg-white/[0.03] group-hover:bg-white/[0.06] border border-white/[0.06] group-hover:border-purple-500/40 rounded-xl pl-9 pr-14 py-2 text-sm text-silver placeholder:text-muted cursor-pointer transition-all"
+            />
+            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-mono bg-white/10 text-white/50 px-1.5 py-0.5 rounded border border-white/10 flex items-center gap-0.5">
+              <Command size={10} />K
+            </kbd>
+          </div>
+        ) : (
+          <div className="flex-1" />
+        )}
 
         <div className="flex items-center gap-2 sm:gap-3.5 ml-auto relative" ref={dropdownRef}>
-          {/* Mobile Search Trigger Icon */}
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setShowSearchModal(true)}
-            className="sm:hidden p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] transition-colors"
-            title="Search Workspace"
-          >
-            <Search size={16} />
-          </motion.button>
+          {/* Mobile Search Trigger Icon (only if search allowed) */}
+          {showSearchBar && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setShowSearchModal(true)}
+              className="sm:hidden p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] transition-colors"
+              title="Search Workspace"
+            >
+              <Search size={16} />
+            </motion.button>
+          )}
+
 
           {/* Admin Control Center Trigger Button (for Admins) */}
           {user?.role === 'ADMIN' && (

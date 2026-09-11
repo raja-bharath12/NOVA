@@ -131,6 +131,9 @@ export default function MusicJam() {
   useEffect(() => {
     if (!paramRoomCode || !inRoom) return
 
+    const token = localStorage.getItem('mystic_token') || ''
+    websocketService.connect(token)
+
     const cleanCode = paramRoomCode.trim().toLowerCase().replace(/^.*\/music\//, '')
     const unsubscribe = websocketService.subscribeToMusicRoom(
       cleanCode,
@@ -168,6 +171,9 @@ export default function MusicJam() {
   async function joinOrLoadRoom(code: string) {
     try {
       setLoading(true)
+      const token = localStorage.getItem('mystic_token') || ''
+      websocketService.connect(token)
+
       const cleanCode = code.trim().toLowerCase().replace(/^.*\/music\//, '')
       const roomData = await musicService.joinRoom(cleanCode)
       setCurrentRoom(roomData)
@@ -194,32 +200,46 @@ export default function MusicJam() {
     if (!audioRef.current) return
 
     // Avoid reacting to own actions if already applied
-    if (action.senderId === user?.id && action.type !== 'QUEUE_CHANGE') return
+    if (action.senderId === user?.id && action.type !== 'QUEUE_CHANGE' && action.type !== 'TRACK_CHANGE' && action.type !== 'NEXT') return
 
     switch (action.type) {
       case 'PLAY':
-        if (action.position !== undefined) {
+        if (action.position !== undefined && audioRef.current) {
           const drift = Math.abs(audioRef.current.currentTime - action.position)
-          if (drift > 0.3) {
+          if (drift > 0.4) {
             audioRef.current.currentTime = action.position
           }
         }
-        audioRef.current.play().catch(() => {})
+        if (audioRef.current && audioRef.current.paused) {
+          audioRef.current.play().catch(() => {})
+        }
         setIsPlaying(true)
         break
 
       case 'PAUSE':
-        if (action.position !== undefined) {
-          audioRef.current.currentTime = action.position
+        if (audioRef.current) {
+          if (action.position !== undefined) {
+            audioRef.current.currentTime = action.position
+            setCurrentTime(action.position)
+          }
+          if (!audioRef.current.paused) {
+            audioRef.current.pause()
+          }
         }
-        audioRef.current.pause()
         setIsPlaying(false)
         break
 
       case 'SEEK':
-        if (action.position !== undefined) {
+        if (action.position !== undefined && audioRef.current) {
           audioRef.current.currentTime = action.position
           setCurrentTime(action.position)
+          if (action.isPlaying && audioRef.current.paused) {
+            audioRef.current.play().catch(() => {})
+            setIsPlaying(true)
+          } else if (action.isPlaying === false && !audioRef.current.paused) {
+            audioRef.current.pause()
+            setIsPlaying(false)
+          }
         }
         break
 
@@ -227,12 +247,13 @@ export default function MusicJam() {
       case 'NEXT':
       case 'QUEUE_CHANGE':
         if (paramRoomCode) {
-          musicService.getRoom(paramRoomCode).then((updated) => {
+          const clean = paramRoomCode.trim().toLowerCase().replace(/^.*\/music\//, '')
+          musicService.getRoom(clean).then((updated) => {
             setCurrentRoom(updated)
             if (updated.currentTrack) {
               setupMediaSession(updated.currentTrack)
             }
-          })
+          }).catch(() => {})
         }
         break
     }
@@ -240,13 +261,15 @@ export default function MusicJam() {
 
   function sendSyncAction(action: Partial<MusicSyncAction>) {
     if (!currentRoom) return
-    websocketService.sendMusicAction(currentRoom.roomCode, {
+    const clean = currentRoom.roomCode.trim().toLowerCase()
+    websocketService.sendMusicAction(clean, {
       ...action,
-      roomCode: currentRoom.roomCode,
+      roomCode: clean,
       senderId: user?.id,
       senderName: user?.name,
     })
   }
+
 
   // 4. Audio Playback Engine
   useEffect(() => {
@@ -854,7 +877,11 @@ export default function MusicJam() {
       {currentTrack && (
         <audio
           ref={audioRef}
-          src={currentTrack.streamUrl}
+          src={
+            currentTrack.streamUrl?.startsWith('http')
+              ? currentTrack.streamUrl
+              : musicService.getStreamUrl(currentTrack.id)
+          }
           onTimeUpdate={() => {
             if (audioRef.current && !isSeeking) {
               setCurrentTime(audioRef.current.currentTime)
@@ -875,6 +902,7 @@ export default function MusicJam() {
           onEnded={handleAdvanceNext}
         />
       )}
+
 
       {/* Top Room Navigation Bar */}
       <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl glass-panel border border-violet-500/20 bg-void-950/80 backdrop-blur-xl flex-shrink-0">

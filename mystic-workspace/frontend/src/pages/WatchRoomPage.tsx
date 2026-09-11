@@ -112,31 +112,54 @@ export const WatchRoomPage: React.FC = () => {
 
   // WebSocket connection and subscription
   useEffect(() => {
-    const token = localStorage.getItem('mystic_token')
-    if (!token || !roomCode) return
+    if (!cleanRoomCode) return
+    const token = localStorage.getItem('mystic_token') || ''
 
     // Ensure STOMP is connected
     websocketService.connect(token)
 
     // Notify presence JOIN
-    websocketService.sendWatchPresence(roomCode, 'JOIN')
+    websocketService.sendWatchPresence(cleanRoomCode, 'JOIN')
 
     // Periodic heartbeat every 30s
     const heartbeatInterval = setInterval(() => {
-      websocketService.sendWatchPresence(roomCode, 'HEARTBEAT')
+      websocketService.sendWatchPresence(cleanRoomCode, 'HEARTBEAT')
     }, 30000)
 
     // Subscribe to room topic
-    const unsubscribe = websocketService.subscribeToWatchRoom(roomCode, (event: any) => {
+    const unsubscribe = websocketService.subscribeToWatchRoom(cleanRoomCode, (event: any) => {
       if (!event) return
 
-      // Handle chat message
-      if (event.content && event.senderName) {
+      // 1. Handle CHAT_MESSAGE Signal (payload wrapped)
+      if (event.type === 'CHAT_MESSAGE' && event.payload) {
+        const p = event.payload
+        const newMsg: WatchChatMessage = {
+          id: p.id || Date.now(),
+          roomCode: p.roomCode || cleanRoomCode,
+          senderId: p.senderId || event.senderId,
+          senderName: p.senderName || event.senderName,
+          senderEmail: p.senderEmail,
+          senderTag: p.senderTag,
+          content: p.content,
+          createdAt: p.createdAt || new Date().toISOString(),
+        }
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === newMsg.id && m.id !== undefined)) return prev
+          return [...prev, newMsg]
+        })
+        if (!isChatOpen) {
+          setUnreadCount((c) => c + 1)
+        }
+        return
+      }
+
+      // 2. Handle direct chat message fallback
+      if (event.content && (event.senderName || event.senderId)) {
         const newMsg: WatchChatMessage = {
           id: event.id || Date.now(),
-          roomCode: event.roomCode || roomCode,
+          roomCode: event.roomCode || cleanRoomCode,
           senderId: event.senderId,
-          senderName: event.senderName,
+          senderName: event.senderName || 'Anonymous',
           senderEmail: event.senderEmail,
           senderTag: event.senderTag,
           content: event.content,
@@ -152,7 +175,7 @@ export const WatchRoomPage: React.FC = () => {
         return
       }
 
-      // Handle control signals
+      // 3. Handle control signals
       if (event.type) {
         const signal = event as WatchControlSignal
 
@@ -164,7 +187,7 @@ export const WatchRoomPage: React.FC = () => {
 
         if (signal.type === 'JOIN' || signal.type === 'LEAVE') {
           // Reload room to update participants
-          watchService.getRoom(roomCode).then((updated: WatchRoom) => {
+          watchService.getRoom(cleanRoomCode).then((updated: WatchRoom) => {
             setMembers(updated.members || [])
           }).catch(() => {})
           return
@@ -177,21 +200,22 @@ export const WatchRoomPage: React.FC = () => {
 
     return () => {
       clearInterval(heartbeatInterval)
-      websocketService.sendWatchPresence(roomCode, 'LEAVE')
+      websocketService.sendWatchPresence(cleanRoomCode, 'LEAVE')
       unsubscribe()
     }
-  }, [roomCode, isChatOpen, showToast])
+  }, [cleanRoomCode, isChatOpen, showToast])
 
   // Handlers for sending outbound control and chat
   const handleSendControl = (signal: Partial<WatchControlSignal>) => {
-    if (!roomCode) return
-    websocketService.sendWatchControl(roomCode, signal)
+    if (!cleanRoomCode) return
+    websocketService.sendWatchControl(cleanRoomCode, signal)
   }
 
   const handleSendMessage = (text: string) => {
-    if (!roomCode || !text.trim()) return
-    websocketService.sendWatchChat(roomCode, text.trim())
+    if (!cleanRoomCode || !text.trim()) return
+    websocketService.sendWatchChat(cleanRoomCode, text.trim())
   }
+
 
   const handleCopyCode = () => {
     if (!roomCode) return

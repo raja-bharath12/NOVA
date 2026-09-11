@@ -474,6 +474,7 @@ export interface MusicSyncAction {
   roomCode: string
   trackId?: number
   position?: number
+  isPlaying?: boolean
   playbackRate?: number
   timestamp?: number
   emoji?: string
@@ -481,6 +482,7 @@ export interface MusicSyncAction {
   senderId?: number
   senderName?: string
 }
+
 
 export interface MusicChatMessage {
   id?: number

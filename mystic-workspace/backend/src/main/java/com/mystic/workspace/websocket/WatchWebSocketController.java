@@ -56,7 +56,7 @@ public class WatchWebSocketController {
         }
 
         // Broadcast synchronized playback signal to all participants in the room
-        String destination = "/topic/watch." + roomCode;
+        String destination = "/topic/watch." + roomCode.trim().toLowerCase();
         messagingTemplate.convertAndSend(destination, signal);
         log.debug("Watch signal broadcast to {}: type={}, pos={}, playing={}", destination, signal.getType(), signal.getPosition(), signal.isPlaying());
     }
@@ -79,14 +79,14 @@ public class WatchWebSocketController {
 
         WatchControlSignalDto signal = WatchControlSignalDto.builder()
                 .type(WatchControlSignalDto.Type.CHAT_MESSAGE)
-                .roomCode(roomCode)
+                .roomCode(roomCode.trim().toLowerCase())
                 .senderId(sender.getId())
                 .senderName(sender.getName())
                 .serverTimestamp(Instant.now())
                 .payload(savedMsg)
                 .build();
 
-        String destination = "/topic/watch." + roomCode;
+        String destination = "/topic/watch." + roomCode.trim().toLowerCase();
         messagingTemplate.convertAndSend(destination, signal);
         log.debug("Watch chat message broadcast to {}: sender={}, msg={}", destination, sender.getName(), savedMsg.getContent());
     }
@@ -105,10 +105,10 @@ public class WatchWebSocketController {
             signal.setSenderId(sender.getId());
             signal.setSenderName(sender.getName());
         }
-        signal.setRoomCode(roomCode);
+        signal.setRoomCode(roomCode.trim().toLowerCase());
         signal.setServerTimestamp(Instant.now());
 
-        String destination = "/topic/watch." + roomCode;
+        String destination = "/topic/watch." + roomCode.trim().toLowerCase();
         messagingTemplate.convertAndSend(destination, signal);
     }
 

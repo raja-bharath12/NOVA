@@ -119,12 +119,14 @@ public class MusicDtos {
         private String roomCode;
         private Long trackId;
         private Double position;
+        private Boolean isPlaying;
         private Double playbackRate;
         private Long timestamp; // Epoch millisecond sent
         private String emoji; // For reaction
         private String chatContent; // For chat
         private Long senderId;
         private String senderName;
+
     }
 
     @Data

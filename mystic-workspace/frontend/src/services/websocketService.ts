@@ -383,7 +383,8 @@ class WebSocketService {
     roomCode: string,
     onEvent: (event: WatchControlSignal | WatchChatMessage | any) => void
   ): () => void {
-    const topic = `/topic/watch.${roomCode}`
+    const clean = roomCode.trim().toLowerCase()
+    const topic = `/topic/watch.${clean}`
     return this.registerSubscription(topic, (imsg: IMessage) => {
       try {
         const data = JSON.parse(imsg.body)
@@ -396,9 +397,10 @@ class WebSocketService {
 
   sendWatchControl(roomCode: string, signal: Partial<WatchControlSignal>) {
     if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toLowerCase()
     try {
       this.client.publish({
-        destination: `/app/watch/${roomCode}/control`,
+        destination: `/app/watch/${clean}/control`,
         body: JSON.stringify(signal),
       })
     } catch (err) {
@@ -408,9 +410,10 @@ class WebSocketService {
 
   sendWatchChat(roomCode: string, content: string) {
     if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toLowerCase()
     try {
       this.client.publish({
-        destination: `/app/watch/${roomCode}/chat`,
+        destination: `/app/watch/${clean}/chat`,
         body: JSON.stringify({ content }),
       })
     } catch (err) {
@@ -420,15 +423,17 @@ class WebSocketService {
 
   sendWatchPresence(roomCode: string, action: 'JOIN' | 'LEAVE' | 'HEARTBEAT') {
     if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toLowerCase()
     try {
       this.client.publish({
-        destination: `/app/watch/${roomCode}/presence`,
+        destination: `/app/watch/${clean}/presence`,
         body: JSON.stringify({ action }),
       })
     } catch (err) {
       console.warn('Failed to publish watch presence', err)
     }
   }
+
 
   // ===== Music Jam Subscriptions & Publishers =====
 

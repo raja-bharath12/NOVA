@@ -30,15 +30,37 @@ public class MusicWsController {
             Principal principal) {
         if (action == null) return;
 
-        action.setRoomCode(roomCode);
+        String cleanCode = roomCode.trim().toLowerCase();
+        action.setRoomCode(cleanCode);
         action.setTimestamp(System.currentTimeMillis());
 
+        User user = null;
         if (principal != null) {
-            action.setSenderName(principal.getName());
+            user = userRepository.findByEmail(principal.getName()).orElse(null);
+            if (user != null) {
+                action.setSenderId(user.getId());
+                action.setSenderName(user.getName());
+            } else {
+                action.setSenderName(principal.getName());
+            }
+        }
+
+        // Persist real-time playback state in DB for late joiners
+        try {
+            if (action.getType() == MusicDtos.SyncAction.Type.PLAY) {
+                musicService.updatePlaybackState(cleanCode, action.getPosition(), true, 1.0, user);
+            } else if (action.getType() == MusicDtos.SyncAction.Type.PAUSE) {
+                musicService.updatePlaybackState(cleanCode, action.getPosition(), false, 1.0, user);
+            } else if (action.getType() == MusicDtos.SyncAction.Type.SEEK) {
+                musicService.updatePlaybackState(cleanCode, action.getPosition(), null, 1.0, user);
+            }
+        } catch (Exception e) {
+            log.warn("Could not update music room DB state for {}: {}", cleanCode, e.getMessage());
         }
 
         // Broadcast sync action to all listeners in room
-        messagingTemplate.convertAndSend("/topic/music/" + roomCode.toLowerCase(), action);
+        messagingTemplate.convertAndSend("/topic/music/" + cleanCode, action);
+        log.debug("Music action broadcast to /topic/music/{}: type={}, pos={}, sender={}", cleanCode, action.getType(), action.getPosition(), action.getSenderName());
     }
 
     @MessageMapping("/music/{roomCode}/reaction")
@@ -48,15 +70,19 @@ public class MusicWsController {
             Principal principal) {
         if (reaction == null) return;
 
+        String cleanCode = roomCode.trim().toLowerCase();
         reaction.setType(MusicDtos.SyncAction.Type.REACTION);
-        reaction.setRoomCode(roomCode);
+        reaction.setRoomCode(cleanCode);
         reaction.setTimestamp(System.currentTimeMillis());
 
         if (principal != null) {
-            reaction.setSenderName(principal.getName());
+            userRepository.findByEmail(principal.getName()).ifPresent(u -> {
+                reaction.setSenderId(u.getId());
+                reaction.setSenderName(u.getName());
+            });
         }
 
-        messagingTemplate.convertAndSend("/topic/music/" + roomCode.toLowerCase() + "/reactions", reaction);
+        messagingTemplate.convertAndSend("/topic/music/" + cleanCode + "/reactions", reaction);
     }
 
     @MessageMapping("/music/{roomCode}/chat")
@@ -66,11 +92,13 @@ public class MusicWsController {
             Principal principal) {
         if (chatAction == null || chatAction.getChatContent() == null) return;
 
+        String cleanCode = roomCode.trim().toLowerCase();
         if (principal != null) {
             userRepository.findByEmail(principal.getName()).ifPresent(user -> {
-                MusicDtos.ChatMessageDto msg = musicService.addChatMessage(roomCode, chatAction.getChatContent(), user);
-                messagingTemplate.convertAndSend("/topic/music/" + roomCode.toLowerCase() + "/chat", msg);
+                MusicDtos.ChatMessageDto msg = musicService.addChatMessage(cleanCode, chatAction.getChatContent(), user);
+                messagingTemplate.convertAndSend("/topic/music/" + cleanCode + "/chat", msg);
             });
         }
     }
 }
+

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { User } from '../types'
 import * as authService from '../services/authService'
+import websocketService from '../services/websocketService'
 
 interface AuthContextValue {
   user: User | null
@@ -21,8 +22,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(stored)
     setLoading(false)
 
-    // Automatically sync real userTag from backend if authenticated
-    if (localStorage.getItem('mystic_token')) {
+    const token = localStorage.getItem('mystic_token')
+    if (token) {
+      websocketService.connect(token)
       authService.fetchCurrentUserProfile()
         .then((fresh) => {
           if (fresh) setUser(fresh)
@@ -34,17 +36,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(identifier: string, password: string) {
     const u = await authService.login(identifier, password)
     setUser(u)
+    const token = localStorage.getItem('mystic_token')
+    if (token) {
+      websocketService.connect(token)
+    }
   }
 
   async function register(name: string, email: string, password: string, username?: string) {
     const u = await authService.register(name, email, password, username)
     setUser(u)
+    const token = localStorage.getItem('mystic_token')
+    if (token) {
+      websocketService.connect(token)
+    }
   }
 
   function logout() {
+    websocketService.disconnect()
     authService.logout()
     setUser(null)
   }
+
 
   return (
     <AuthContext.Provider value={{ user, loading, login, register, logout }}>

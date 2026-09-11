@@ -107,4 +107,12 @@ export const musicService = {
     const { data } = await api.post<MusicChatMessage>(`/music/rooms/${roomCode}/messages`, { content })
     return data
   },
+
+  // 5. Stream URL Helper
+  getStreamUrl(trackId: number): string {
+    const token = localStorage.getItem('mystic_token') || ''
+    const base = api.defaults.baseURL || '/api'
+    return `${base}/music/tracks/${trackId}/stream?token=${encodeURIComponent(token)}`
+  },
 }
+
