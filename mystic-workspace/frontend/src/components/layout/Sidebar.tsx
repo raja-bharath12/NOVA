@@ -17,6 +17,7 @@ import {
   Hash,
   Film,
   Shield,
+  Headphones,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/chat', label: 'Chat', icon: MessageSquare },
   { to: '/meetings', label: 'Meetings', icon: Video },
   { to: '/watch', label: 'Watch Together', icon: Film },
+  { to: '/music', label: 'Music Jam', icon: Headphones },
   { to: '/files', label: 'Files', icon: FolderOpen },
   { to: '/whiteboard', label: 'Whiteboard', icon: PenTool },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
@@ -49,6 +51,7 @@ const MOBILE_PRIMARY_TABS: NavItem[] = [
 ]
 
 const MORE_SHEET_ITEMS = [
+  { to: '/music', label: 'Music Jam', icon: Headphones, desc: 'Sync music & group beats' },
   { to: '/watch', label: 'Watch Together', icon: Film, desc: 'Sync streaming & live chat' },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, desc: 'Events & schedule' },
   { to: '/files', label: 'Files', icon: FolderOpen, desc: 'Cloud storage & media' },

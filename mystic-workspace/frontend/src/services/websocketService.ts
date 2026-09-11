@@ -1,7 +1,18 @@
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs'
 import SockJS from 'sockjs-client'
 import { WS_BASE_URL } from './api'
-import type { CallSignal, MeetingSignal, Message, PresenceEvent, ReadReceiptEvent, TypingEvent, WatchControlSignal, WatchChatMessage } from '../types'
+import type {
+  CallSignal,
+  MeetingSignal,
+  Message,
+  PresenceEvent,
+  ReadReceiptEvent,
+  TypingEvent,
+  WatchControlSignal,
+  WatchChatMessage,
+  MusicSyncAction,
+  MusicChatMessage,
+} from '../types'
 
 interface ActiveSub {
   id: string
@@ -416,6 +427,97 @@ class WebSocketService {
       })
     } catch (err) {
       console.warn('Failed to publish watch presence', err)
+    }
+  }
+
+  // ===== Music Jam Subscriptions & Publishers =====
+
+  subscribeToMusicRoom(
+    roomCode: string,
+    onAction: (action: MusicSyncAction) => void,
+    onReaction?: (reaction: MusicSyncAction) => void,
+    onChat?: (msg: MusicChatMessage) => void
+  ): () => void {
+    const clean = roomCode.trim().toLowerCase()
+    const topicAction = `/topic/music/${clean}`
+    const unsubAction = this.registerSubscription(topicAction, (imsg: IMessage) => {
+      try {
+        const data: MusicSyncAction = JSON.parse(imsg.body)
+        onAction(data)
+      } catch (err) {
+        console.error('Failed to parse music sync action', err)
+      }
+    })
+
+    let unsubReaction: (() => void) | null = null
+    if (onReaction) {
+      const topicReaction = `/topic/music/${clean}/reactions`
+      unsubReaction = this.registerSubscription(topicReaction, (imsg: IMessage) => {
+        try {
+          const data: MusicSyncAction = JSON.parse(imsg.body)
+          onReaction(data)
+        } catch (err) {
+          console.error('Failed to parse music reaction', err)
+        }
+      })
+    }
+
+    let unsubChat: (() => void) | null = null
+    if (onChat) {
+      const topicChat = `/topic/music/${clean}/chat`
+      unsubChat = this.registerSubscription(topicChat, (imsg: IMessage) => {
+        try {
+          const data: MusicChatMessage = JSON.parse(imsg.body)
+          onChat(data)
+        } catch (err) {
+          console.error('Failed to parse music chat', err)
+        }
+      })
+    }
+
+    return () => {
+      unsubAction()
+      unsubReaction?.()
+      unsubChat?.()
+    }
+  }
+
+  sendMusicAction(roomCode: string, action: Partial<MusicSyncAction>) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toLowerCase()
+    try {
+      this.client.publish({
+        destination: `/app/music/${clean}/action`,
+        body: JSON.stringify(action),
+      })
+    } catch (err) {
+      console.warn('Failed to publish music action', err)
+    }
+  }
+
+  sendMusicReaction(roomCode: string, reaction: Partial<MusicSyncAction>) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toLowerCase()
+    try {
+      this.client.publish({
+        destination: `/app/music/${clean}/reaction`,
+        body: JSON.stringify(reaction),
+      })
+    } catch (err) {
+      console.warn('Failed to publish music reaction', err)
+    }
+  }
+
+  sendMusicChat(roomCode: string, content: string) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toLowerCase()
+    try {
+      this.client.publish({
+        destination: `/app/music/${clean}/chat`,
+        body: JSON.stringify({ chatContent: content }),
+      })
+    } catch (err) {
+      console.warn('Failed to publish music chat', err)
     }
   }
 }

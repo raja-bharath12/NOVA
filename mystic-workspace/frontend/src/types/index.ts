@@ -378,8 +378,11 @@ export interface AdminStats {
   totalWatchRooms: number
   totalMeetings: number
   totalMediaUploads: number
+  totalMusicRooms?: number
+  totalMusicTracks?: number
   activeWatchRooms: number
   activeMeetings: number
+  activeMusicRooms?: number
   freeMemoryMB: number
   totalMemoryMB: number
   maxMemoryMB: number
@@ -388,7 +391,7 @@ export interface AdminStats {
 }
 
 export interface AdminRoomItem {
-  type: 'WATCH' | 'MEET'
+  type: 'WATCH' | 'MEET' | 'MUSIC'
   roomCode: string
   title: string
   hostName: string
@@ -408,3 +411,84 @@ export interface AdminFileItem {
   ownerName: string
   ownerEmail: string
 }
+
+// ===== MUSIC JAM TYPES =====
+
+export interface MusicTrack {
+  id: number
+  title: string
+  artist: string
+  album?: string
+  originalFilename: string
+  storageKey: string
+  mimeType: string
+  fileSize: number
+  duration: number
+  coverArtUrl?: string
+  streamUrl: string
+  uploaderId: number
+  uploaderName: string
+  createdAt: string
+}
+
+export interface MusicRoomMember {
+  id: number
+  userId: number
+  userName: string
+  userTag?: string
+  email: string
+  role: 'HOST' | 'DJ' | 'LISTENER'
+  joinedAt: string
+}
+
+export interface MusicQueueItem {
+  id: number
+  track: MusicTrack
+  addedById: number
+  addedByName: string
+  orderIndex: number
+  addedAt: string
+}
+
+export interface MusicRoom {
+  id: number
+  roomCode: string
+  title: string
+  hostId: number
+  hostName: string
+  hostEmail: string
+  currentTrack?: MusicTrack | null
+  currentPosition: number
+  isPlaying: boolean
+  playbackRate: number
+  isCollaborative: boolean
+  status: string
+  lastSyncedAt: string
+  members: MusicRoomMember[]
+  queue: MusicQueueItem[]
+  createdAt: string
+}
+
+export interface MusicSyncAction {
+  type: 'PLAY' | 'PAUSE' | 'SEEK' | 'SYNC' | 'NEXT' | 'PREV' | 'QUEUE_CHANGE' | 'REACTION' | 'CHAT' | 'TRACK_CHANGE'
+  roomCode: string
+  trackId?: number
+  position?: number
+  playbackRate?: number
+  timestamp?: number
+  emoji?: string
+  chatContent?: string
+  senderId?: number
+  senderName?: string
+}
+
+export interface MusicChatMessage {
+  id?: number
+  roomCode: string
+  senderId: number
+  senderName: string
+  senderTag?: string
+  content: string
+  createdAt: string
+}
+

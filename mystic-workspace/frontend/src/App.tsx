@@ -20,6 +20,7 @@ import Whiteboard from './pages/Whiteboard'
 import Settings from './pages/Settings'
 import WatchTogetherHome from './pages/WatchTogetherHome'
 import WatchRoomPage from './pages/WatchRoomPage'
+import MusicJam from './pages/MusicJam'
 import AdminDashboard from './pages/AdminDashboard'
 
 export default function App() {
@@ -130,6 +131,26 @@ export default function App() {
             <Route
               path="/watch/:roomCode"
               element={<WatchRoomPage />}
+            />
+            <Route
+              path="/music"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <MusicJam />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/music/:roomCode"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <MusicJam />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/files"

@@ -31,6 +31,8 @@ public class AdminController {
     private final WatchRoomRepository watchRoomRepository;
     private final MeetingRepository meetingRepository;
     private final WatchMediaRepository watchMediaRepository;
+    private final MusicRoomRepository musicRoomRepository;
+    private final MusicTrackRepository musicTrackRepository;
     private final jakarta.persistence.EntityManager entityManager;
 
     @Data
@@ -42,8 +44,11 @@ public class AdminController {
         private long totalWatchRooms;
         private long totalMeetings;
         private long totalMediaUploads;
+        private long totalMusicRooms;
+        private long totalMusicTracks;
         private long activeWatchRooms;
         private long activeMeetings;
+        private long activeMusicRooms;
         private long freeMemoryMB;
         private long totalMemoryMB;
         private long maxMemoryMB;
@@ -59,7 +64,7 @@ public class AdminController {
     @Data
     @Builder
     public static class RoomSummaryDto {
-        private String type; // WATCH or MEET
+        private String type; // WATCH, MEET, or MUSIC
         private String roomCode;
         private String title;
         private String hostName;
@@ -84,6 +89,10 @@ public class AdminController {
                 .filter(m -> "ACTIVE".equalsIgnoreCase(m.getStatus().name()))
                 .count();
 
+        long activeMusicRooms = musicRoomRepository.findAll().stream()
+                .filter(m -> m.getStatus() == com.mystic.workspace.entity.MusicRoom.Status.ACTIVE)
+                .count();
+
         return AdminStatsDto.builder()
                 .totalUsers(userRepository.count())
                 .totalMessages(messageRepository.count())
@@ -91,8 +100,11 @@ public class AdminController {
                 .totalWatchRooms(watchRoomRepository.count())
                 .totalMeetings(meetingRepository.count())
                 .totalMediaUploads(watchMediaRepository.count())
+                .totalMusicRooms(musicRoomRepository.count())
+                .totalMusicTracks(musicTrackRepository.count())
                 .activeWatchRooms(activeWatchRooms)
                 .activeMeetings(activeMeetings)
+                .activeMusicRooms(activeMusicRooms)
                 .freeMemoryMB(freeMb)
                 .totalMemoryMB(totalMb)
                 .maxMemoryMB(maxMb)
@@ -183,7 +195,19 @@ public class AdminController {
         entityManager.createNativeQuery("DELETE FROM conversations WHERE id NOT IN (SELECT DISTINCT conversation_id FROM conversation_members)")
                 .executeUpdate();
 
-        // 4. Social & Productivity dependencies
+        // 4. Music Jam dependencies
+        entityManager.createNativeQuery("DELETE FROM music_room_messages WHERE sender_id = :uid OR room_id IN (SELECT id FROM music_rooms WHERE host_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM music_room_queue WHERE added_by_id = :uid OR room_id IN (SELECT id FROM music_rooms WHERE host_id = :uid OR current_track_id IN (SELECT id FROM music_tracks WHERE uploader_id = :uid))")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM music_room_members WHERE user_id = :uid OR room_id IN (SELECT id FROM music_rooms WHERE host_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM music_rooms WHERE host_id = :uid OR current_track_id IN (SELECT id FROM music_tracks WHERE uploader_id = :uid)")
+                .setParameter("uid", id).executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM music_tracks WHERE uploader_id = :uid")
+                .setParameter("uid", id).executeUpdate();
+
+        // 5. Social & Productivity dependencies
         entityManager.createNativeQuery("DELETE FROM user_connections WHERE requester_id = :uid OR recipient_id = :uid")
                 .setParameter("uid", id).executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tasks WHERE user_id = :uid")
@@ -191,7 +215,7 @@ public class AdminController {
         entityManager.createNativeQuery("DELETE FROM events WHERE user_id = :uid")
                 .setParameter("uid", id).executeUpdate();
 
-        // 5. Delete user record permanently
+        // 6. Delete user record permanently
         entityManager.createNativeQuery("DELETE FROM users WHERE id = :uid")
                 .setParameter("uid", id).executeUpdate();
     }
@@ -243,6 +267,8 @@ public class AdminController {
 
     @GetMapping("/rooms")
     public List<RoomSummaryDto> getAllRooms() {
+        List<RoomSummaryDto> allRooms = new java.util.ArrayList<>();
+
         List<RoomSummaryDto> watchRooms = watchRoomRepository.findAll(Sort.by(Sort.Direction.DESC, "id")).stream()
                 .map(r -> RoomSummaryDto.builder()
                         .type("WATCH")
@@ -255,8 +281,23 @@ public class AdminController {
                         .createdAt(r.getCreatedAt())
                         .build())
                 .toList();
+        allRooms.addAll(watchRooms);
 
-        return watchRooms;
+        List<RoomSummaryDto> musicRooms = musicRoomRepository.findAll(Sort.by(Sort.Direction.DESC, "id")).stream()
+                .map(r -> RoomSummaryDto.builder()
+                        .type("MUSIC")
+                        .roomCode(r.getRoomCode())
+                        .title(r.getTitle())
+                        .hostName(r.getHost() != null ? r.getHost().getName() : "Unknown")
+                        .hostEmail(r.getHost() != null ? r.getHost().getEmail() : "")
+                        .status(r.getStatus() != null ? r.getStatus().name() : "ACTIVE")
+                        .memberCount(r.getMembers() != null ? r.getMembers().size() : 0)
+                        .createdAt(r.getCreatedAt())
+                        .build())
+                .toList();
+        allRooms.addAll(musicRooms);
+
+        return allRooms;
     }
 
     @DeleteMapping("/rooms/watch/{code}")
