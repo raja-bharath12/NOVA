@@ -37,6 +37,11 @@ export const meetingService = {
   async leaveMeeting(roomCode: string): Promise<void> {
     await api.post(`/meetings/${roomCode}/leave`)
   },
+
+  async endMeeting(roomCode: string): Promise<Meeting> {
+    const res = await api.post<Meeting>(`/meetings/${roomCode}/end`)
+    return res.data
+  },
 }
 
 export default meetingService

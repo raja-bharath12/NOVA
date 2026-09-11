@@ -6,6 +6,7 @@ import com.mystic.workspace.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -22,6 +23,7 @@ public class MeetingService {
 
     private final MeetingRepository meetingRepository;
     private final MeetingParticipantRepository meetingParticipantRepository;
+    private final SimpMessagingTemplate messagingTemplate;
     private final SecureRandom random = new SecureRandom();
 
     @Transactional
@@ -184,6 +186,45 @@ public class MeetingService {
                     p.setLeftAt(Instant.now());
                     meetingParticipantRepository.save(p);
                 });
+    }
+
+    @Transactional
+    public MeetingDto endMeeting(User currentUser, String roomCode) {
+        Meeting meeting = meetingRepository.findByRoomCode(roomCode)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Meeting not found"));
+
+        if (!meeting.getHost().getId().equals(currentUser.getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the meeting host can end the meeting");
+        }
+
+        meeting.setStatus(Meeting.Status.ENDED);
+        meeting.setEndedAt(Instant.now());
+        Meeting saved = meetingRepository.save(meeting);
+
+        // Mark all active participants as left
+        List<MeetingParticipant> participants = meetingParticipantRepository.findByMeetingId(meeting.getId());
+        for (MeetingParticipant p : participants) {
+            if (p.getLeftAt() == null) {
+                p.setLeftAt(Instant.now());
+            }
+        }
+        meetingParticipantRepository.saveAll(participants);
+
+        // Broadcast meeting end signal
+        try {
+            MeetingSignalDto endSignal = MeetingSignalDto.builder()
+                    .type(MeetingSignalDto.Type.LEAVE)
+                    .roomCode(roomCode)
+                    .senderId(currentUser.getId())
+                    .senderName(currentUser.getName())
+                    .timestamp(Instant.now())
+                    .build();
+            messagingTemplate.convertAndSend("/topic/meeting." + roomCode + ".signal", endSignal);
+        } catch (Exception e) {
+            log.error("Failed to broadcast meeting end signal: {}", e.getMessage());
+        }
+
+        return toDto(saved);
     }
 
     private String generateRoomCode() {

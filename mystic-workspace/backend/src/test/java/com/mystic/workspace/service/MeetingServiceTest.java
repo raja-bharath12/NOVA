@@ -13,6 +13,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,6 +29,9 @@ class MeetingServiceTest {
 
     @Mock
     private MeetingParticipantRepository meetingParticipantRepository;
+
+    @Mock
+    private SimpMessagingTemplate messagingTemplate;
 
     @InjectMocks
     private MeetingService meetingService;
@@ -64,5 +69,26 @@ class MeetingServiceTest {
         assertEquals("ACTIVE", result.getStatus());
         verify(meetingRepository).save(any(Meeting.class));
         verify(meetingParticipantRepository).save(any());
+    }
+
+    @Test
+    void testEndMeeting() {
+        Meeting active = Meeting.builder()
+                .id(99L)
+                .roomCode("nova-abc-xyz")
+                .title("Design Sync")
+                .host(user1)
+                .status(Meeting.Status.ACTIVE)
+                .build();
+
+        when(meetingRepository.findByRoomCode("nova-abc-xyz")).thenReturn(java.util.Optional.of(active));
+        when(meetingRepository.save(any(Meeting.class))).thenReturn(active);
+        when(meetingParticipantRepository.findByMeetingId(99L)).thenReturn(Collections.emptyList());
+
+        MeetingDto result = meetingService.endMeeting(user1, "nova-abc-xyz");
+
+        assertNotNull(result);
+        assertEquals(Meeting.Status.ENDED.name(), active.getStatus().name());
+        verify(meetingRepository).save(active);
     }
 }

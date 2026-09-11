@@ -124,7 +124,7 @@ class ConversationServiceTest {
     @Test
     void testCreateOrGetDirectByTag() {
         user2.setUserTag("MYST-TEST02");
-        when(userRepository.findByUserTagIgnoreCase("MYST-TEST02")).thenReturn(Optional.of(user2));
+        when(userRepository.findByUserTagIgnoreCase(anyString())).thenReturn(Optional.of(user2));
         when(conversationRepository.findDirectConversationBetween(1L, 2L)).thenReturn(Optional.empty());
 
         Conversation saved = Conversation.builder()

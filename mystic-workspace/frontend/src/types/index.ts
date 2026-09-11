@@ -109,7 +109,17 @@ export interface Meeting {
 }
 
 export interface CallSignal {
-  type: 'CALL_REQUEST' | 'CALL_ACCEPT' | 'CALL_REJECT' | 'CALL_BUSY' | 'CALL_END' | 'OFFER' | 'ANSWER' | 'ICE_CANDIDATE'
+  type:
+    | 'CALL_REQUEST'
+    | 'CALL_ACCEPT'
+    | 'CALL_REJECT'
+    | 'CALL_BUSY'
+    | 'CALL_END'
+    | 'OFFER'
+    | 'ANSWER'
+    | 'ICE_CANDIDATE'
+    | 'CANDIDATE'
+    | 'HANGUP'
   senderId: number
   senderName: string
   targetUserId: number

@@ -1,12 +1,12 @@
 package com.mystic.workspace.controller;
 
+import com.mystic.workspace.security.UserPrincipal;
 import io.livekit.server.AccessToken;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -27,15 +27,19 @@ public class LiveKitController {
     @GetMapping("/token")
     public ResponseEntity<Map<String, String>> getToken(
             @RequestParam String room,
-            @AuthenticationPrincipal UserDetails userDetails) {
+            @AuthenticationPrincipal UserPrincipal principal) {
 
-        String username = (userDetails != null && userDetails.getUsername() != null)
-                ? userDetails.getUsername()
+        String identity = (principal != null && principal.getUsername() != null)
+                ? principal.getUsername()
                 : "Guest-" + System.currentTimeMillis();
 
+        String displayName = (principal != null && principal.getName() != null && !principal.getName().isBlank())
+                ? principal.getName()
+                : identity;
+
         AccessToken token = new AccessToken(apiKey, apiSecret);
-        token.setName(username);
-        token.setIdentity(username);
+        token.setName(displayName);
+        token.setIdentity(identity);
         token.addGrants(new RoomJoin(true), new RoomName(room));
 
         return ResponseEntity.ok(Map.of(

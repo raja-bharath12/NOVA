@@ -205,7 +205,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   }
 
   function handleIncomingCallSignal(signal: CallSignal) {
-    if (signal.type === 'CALL_REQUEST') {
+    if (signal.type === 'CALL_REQUEST' || signal.type === 'OFFER') {
       if (activeCallRef.current) {
         websocketService.sendCallSignal({
           type: 'CALL_BUSY',
@@ -223,9 +223,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
         url: '/chat',
         tag: 'incoming-call',
       })
-    } else if (signal.type === 'CALL_REJECT' || signal.type === 'CALL_BUSY' || signal.type === 'CALL_END') {
+    } else if (
+      signal.type === 'CALL_REJECT' ||
+      signal.type === 'CALL_BUSY' ||
+      signal.type === 'CALL_END' ||
+      signal.type === 'HANGUP'
+    ) {
       endCall()
-    } else if (signal.type === 'OFFER' || signal.type === 'ANSWER' || signal.type === 'ICE_CANDIDATE') {
+    } else if (
+      signal.type === 'ANSWER' ||
+      signal.type === 'ICE_CANDIDATE' ||
+      signal.type === 'CANDIDATE'
+    ) {
       webrtcService.handleCallSignal(signal)
     }
   }

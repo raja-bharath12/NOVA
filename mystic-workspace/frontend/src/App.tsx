@@ -99,6 +99,22 @@ export default function App() {
               }
             />
             <Route
+              path="/meeting/:roomCode"
+              element={
+                <ProtectedRoute>
+                  <MeetingRoom />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/meetings/:roomCode"
+              element={
+                <ProtectedRoute>
+                  <MeetingRoom />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/files"
               element={
                 <ProtectedRoute>

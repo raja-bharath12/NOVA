@@ -38,8 +38,10 @@ public class SignalingWebSocketController {
 
         userRepository.findById(signal.getTargetUserId()).ifPresent(targetUser -> {
             try {
-                // Send to target user's private queue: /user/{email}/queue/call.signal
+                // 1. Send to target user's private queue: /user/{email}/queue/call.signal
                 messagingTemplate.convertAndSendToUser(targetUser.getEmail(), "/queue/call.signal", signal);
+                // 2. Also broadcast to /topic/user.{id}.call for multi-tab/topic resilience
+                messagingTemplate.convertAndSend("/topic/user." + targetUser.getId() + ".call", signal);
             } catch (Exception e) {
                 log.error("Failed to route call signal from {} to {}: {}", sender.getId(), targetUser.getId(), e.getMessage());
             }

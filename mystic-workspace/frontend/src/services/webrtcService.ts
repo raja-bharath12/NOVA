@@ -1,25 +1,30 @@
 import { websocketService } from './websocketService'
 import type { CallSignal, MeetingSignal } from '../types'
 
+const stunServer = (import.meta.env.VITE_STUN_SERVER as string) || 'stun:stun.l.google.com:19302'
+const turnServer = (import.meta.env.VITE_TURN_SERVER as string) || 'turn:openrelay.metered.ca:80'
+const turnUsername = (import.meta.env.VITE_TURN_USERNAME as string) || 'openrelayproject'
+const turnPassword = (import.meta.env.VITE_TURN_PASSWORD as string) || 'openrelayproject'
+
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: stunServer },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
     {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: turnServer,
+      username: turnUsername,
+      credential: turnPassword,
     },
     {
       urls: 'turn:openrelay.metered.ca:443',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      username: turnUsername,
+      credential: turnPassword,
     },
     {
       urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      username: turnUsername,
+      credential: turnPassword,
     },
   ],
   iceCandidatePoolSize: 10,

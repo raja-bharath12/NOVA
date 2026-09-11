@@ -20,6 +20,7 @@ export default function CallModal() {
 
   const localVideoRef = useRef<HTMLVideoElement>(null)
   const remoteVideoRef = useRef<HTMLVideoElement>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const [duration, setDuration] = useState(0)
 
   useEffect(() => {
@@ -44,6 +45,9 @@ export default function CallModal() {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream
     }
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream
+    }
   }, [remoteStream])
 
   const formatDuration = (sec: number) => {
@@ -54,6 +58,9 @@ export default function CallModal() {
 
   return (
     <>
+      {/* Hidden audio element for crystal-clear WebRTC voice playback */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
       {/* Incoming Call Popup */}
       <AnimatePresence>
         {incomingCall && !activeCall && (

@@ -18,7 +18,9 @@ public class CallSignalDto {
         CALL_END,
         OFFER,
         ANSWER,
-        ICE_CANDIDATE
+        ICE_CANDIDATE,
+        CANDIDATE,
+        HANGUP
     }
 
     private Type type;

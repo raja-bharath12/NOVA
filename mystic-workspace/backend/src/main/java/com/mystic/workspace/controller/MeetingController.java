@@ -73,6 +73,14 @@ public class MeetingController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{roomCode}/end")
+    public MeetingDto endMeeting(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String roomCode
+    ) {
+        return meetingService.endMeeting(currentUser(principal), roomCode);
+    }
+
     private User currentUser(UserPrincipal principal) {
         return userRepository.findById(principal.getId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));

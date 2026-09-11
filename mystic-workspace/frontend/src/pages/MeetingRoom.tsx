@@ -408,13 +408,30 @@ export default function MeetingRoom() {
 
   const handleCopyCode = () => {
     if (!roomCode) return
-    navigator.clipboard.writeText(window.location.href)
+    const url = `${window.location.origin}/meeting/${roomCode}`
+    navigator.clipboard.writeText(url)
     setCopiedCode(true)
     setTimeout(() => setCopiedCode(false), 2000)
   }
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
+    if (roomCode) {
+      try {
+        await meetingService.leaveMeeting(roomCode)
+      } catch (ignored) {}
+    }
     navigate('/meetings')
+  }
+
+  const handleEndMeeting = async () => {
+    if (!roomCode) return
+    try {
+      await meetingService.endMeeting(roomCode)
+      showToast('Meeting ended for all participants.', 'info')
+      navigate('/meetings')
+    } catch (err) {
+      navigate('/meetings')
+    }
   }
 
   return (
@@ -548,14 +565,26 @@ export default function MeetingRoom() {
             <span className="hidden sm:inline">{copiedCode ? 'Copied' : 'Invite'}</span>
           </button>
 
-          {/* Leave Button */}
-          <button
-            onClick={handleDisconnect}
-            className="h-9 flex items-center gap-1.5 px-3.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-semibold text-rose-300 transition-all shadow-sm"
-          >
-            <PhoneOff size={14} />
-            <span>Leave</span>
-          </button>
+          {/* Leave / End Button */}
+          {isHost ? (
+            <button
+              onClick={handleEndMeeting}
+              className="h-9 flex items-center gap-1.5 px-3.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/40 border border-rose-500/50 text-xs font-semibold text-rose-300 transition-all shadow-sm"
+              title="End meeting for all participants"
+            >
+              <PhoneOff size={14} />
+              <span>End Meeting</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleDisconnect}
+              className="h-9 flex items-center gap-1.5 px-3.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-semibold text-rose-300 transition-all shadow-sm"
+              title="Leave meeting"
+            >
+              <PhoneOff size={14} />
+              <span>Leave</span>
+            </button>
+          )}
         </div>
       </GlassPanel>
 

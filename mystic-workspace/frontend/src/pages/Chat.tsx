@@ -1630,54 +1630,61 @@ export default function Chat() {
                         </div>
                       </div>
 
-                      {lookedUpUser.connectionStatus === 'CONNECTED' ? (
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleStartChatWithUser(lookedUpUser)}
-                          className="px-3 py-1.5 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-void-950 font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
+                          className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-cyan-400 hover:from-violet-400 hover:to-cyan-300 text-void-950 font-bold text-xs flex items-center gap-1.5 shadow-glow transition-all"
                         >
-                          <MessageSquare size={12} />
-                          <span>Chat</span>
+                          <MessageSquare size={13} />
+                          <span>Start Chat</span>
                         </button>
-                      ) : lookedUpUser.connectionStatus === 'PENDING_SENT' ? (
-                        <div className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-400/30 text-amber-300 text-xs flex items-center gap-1.5">
-                          <Clock size={12} className="animate-spin" />
-                          <span>Pending</span>
-                        </div>
-                      ) : lookedUpUser.connectionStatus === 'PENDING_RECEIVED' ? (
-                        <div className="flex items-center gap-1">
+
+                        {lookedUpUser.connectionStatus === 'CONNECTED' ? (
+                          <div className="px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] flex items-center gap-1">
+                            <UserCheck size={12} />
+                            <span>Connected</span>
+                          </div>
+                        ) : lookedUpUser.connectionStatus === 'PENDING_SENT' ? (
+                          <div className="px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-400/30 text-amber-300 text-[11px] flex items-center gap-1">
+                            <Clock size={12} />
+                            <span>Pending</span>
+                          </div>
+                        ) : lookedUpUser.connectionStatus === 'PENDING_RECEIVED' ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={processingRequestId === lookedUpUser.connectionId}
+                              onClick={() =>
+                                handleAcceptRequest(lookedUpUser.connectionId!, lookedUpUser.name, lookedUpUser.id)
+                              }
+                              className="px-2 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-void-950 font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
+                            >
+                              <Check size={12} />
+                              <span>Allow</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={processingRequestId === lookedUpUser.connectionId}
+                              onClick={() => handleDeclineRequest(lookedUpUser.connectionId!)}
+                              className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 text-xs flex items-center gap-1 border border-rose-500/30 transition-all"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             type="button"
-                            disabled={processingRequestId === lookedUpUser.connectionId}
-                            onClick={() =>
-                              handleAcceptRequest(lookedUpUser.connectionId!, lookedUpUser.name, lookedUpUser.id)
-                            }
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-void-950 font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
+                            disabled={connectingUserId === lookedUpUser.id}
+                            onClick={() => handleSendConnectionRequest(lookedUpUser)}
+                            className="px-2.5 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-silver font-semibold text-xs flex items-center gap-1 transition-all"
+                            title="Send connection request"
                           >
-                            <Check size={12} />
-                            <span>Allow</span>
+                            <UserPlus size={12} />
+                            <span>Connect</span>
                           </button>
-                          <button
-                            type="button"
-                            disabled={processingRequestId === lookedUpUser.connectionId}
-                            onClick={() => handleDeclineRequest(lookedUpUser.connectionId!)}
-                            className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 text-xs flex items-center gap-1 border border-rose-500/30 transition-all"
-                          >
-                            <X size={12} />
-                            <span>Decline</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={connectingUserId === lookedUpUser.id}
-                          onClick={() => handleSendConnectionRequest(lookedUpUser)}
-                          className="px-3 py-1.5 rounded-lg bg-violet-600/40 hover:bg-violet-600/60 border border-violet-400/30 text-silver hover:text-white font-semibold text-xs flex items-center gap-1 shadow-glow transition-all"
-                        >
-                          <UserPlus size={12} />
-                          <span>Connect</span>
-                        </button>
-                      )}
+                        )}
+                      </div>
                     </motion.div>
                   )}
 
