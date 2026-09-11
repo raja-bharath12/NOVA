@@ -27,7 +27,9 @@ export interface Task {
   category?: string
   deadline?: string // ISO date (yyyy-MM-dd)
   completed: boolean
+  createdAt?: string // ISO timestamp from backend
 }
+
 
 export interface EventItem {
   id?: number

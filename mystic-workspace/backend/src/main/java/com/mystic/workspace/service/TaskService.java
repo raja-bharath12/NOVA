@@ -75,6 +75,8 @@ public class TaskService {
         dto.setCategory(task.getCategory());
         dto.setDeadline(task.getDeadline());
         dto.setCompleted(task.isCompleted());
+        dto.setCreatedAt(task.getCreatedAt());
         return dto;
     }
 }
+

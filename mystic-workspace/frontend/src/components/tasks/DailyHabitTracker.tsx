@@ -1,47 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronLeft,
   ChevronRight,
   Plus,
   Trash2,
-  Edit2,
   Check,
   Calendar as CalendarIcon,
   Lock,
   X,
   Settings2,
   Sparkles,
-  CalendarDays,
-  Repeat,
-  Layers
+  Play,
+  Flame,
+  CheckCircle2
 } from 'lucide-react'
 import GlassPanel from '../dashboard/GlassPanel'
-
-export type HabitScheduleType = 'EVERY_DAY' | 'SPECIFIC_DAY_OF_MONTH' | 'DATE_RANGE' | 'SPECIFIC_DATE'
-
-export interface DailyHabit {
-  id: string
-  title: string
-  emoji?: string
-  createdAt: string
-  scheduleType?: HabitScheduleType
-  specificDayOfMonth?: number // e.g. 15 (every month on 15th)
-  rangeStartDay?: number // e.g. 1
-  rangeEndDay?: number // e.g. 15
-  specificDate?: string // 'YYYY-MM-DD'
-}
-
-const DEFAULT_HABITS: DailyHabit[] = [
-  { id: 'h1', title: 'Wake up at 05:00', emoji: '⏰', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-  { id: 'h2', title: 'Gym & Workout', emoji: '🏋️', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-  { id: 'h3', title: 'Reading & Learning', emoji: '📚', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-  { id: 'h4', title: 'Deep Work Session', emoji: '🚀', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-  { id: 'h5', title: 'Code Review & PRs', emoji: '💻', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-  { id: 'h6', title: 'Day Planning & Tasks', emoji: '📝', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-  { id: 'h7', title: 'Social Media Detox', emoji: '🌿', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-  { id: 'h8', title: 'Evening Journal & Retrospective', emoji: '🌙', scheduleType: 'EVERY_DAY', createdAt: new Date().toISOString() },
-]
+import type { Task, Priority } from '../../types'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -51,15 +26,25 @@ const MONTH_NAMES = [
 const DAY_ABBRS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
 interface DailyHabitTrackerProps {
+  tasks: Task[]
+  onToggleTask: (id: number) => Promise<void> | void
+  onCreateTask: (task: Partial<Task>) => Promise<void> | void
+  onDeleteTask: (id: number) => Promise<void> | void
   showEditHabitButton?: boolean
   isManageOpen?: boolean
   setIsManageOpen?: (open: boolean) => void
+  onOpenTutorial?: () => void
 }
 
 export default function DailyHabitTracker({
+  tasks,
+  onToggleTask,
+  onCreateTask,
+  onDeleteTask,
   showEditHabitButton = true,
   isManageOpen = false,
-  setIsManageOpen
+  setIsManageOpen,
+  onOpenTutorial
 }: DailyHabitTrackerProps) {
   // Navigation state
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
@@ -69,87 +54,22 @@ export default function DailyHabitTracker({
   const isModalOpen = setIsManageOpen ? isManageOpen : internalManageOpen
   const setModalOpen = setIsManageOpen || setInternalManageOpen
 
-  // Habits list state
-  const [habits, setHabits] = useState<DailyHabit[]>(() => {
-    try {
-      const saved = localStorage.getItem('nova_daily_habits')
-      return saved ? JSON.parse(saved) : DEFAULT_HABITS
-    } catch {
-      return DEFAULT_HABITS
-    }
-  })
-
-  // Checks mapping: { [dateKey: 'YYYY-MM-DD']: { [habitId: string]: boolean } }
-  const [checkMap, setCheckMap] = useState<Record<string, Record<string, boolean>>>(() => {
-    try {
-      const saved = localStorage.getItem('nova_habit_checks')
-      if (saved) return JSON.parse(saved)
-
-      // Initialize past days with realistic sample check-ins
-      const initialMap: Record<string, Record<string, boolean>> = {}
-      const today = new Date()
-      const year = today.getFullYear()
-      const month = today.getMonth()
-      const currentDay = today.getDate()
-
-      for (let day = 1; day <= currentDay; day++) {
-        const monthStr = String(month + 1).padStart(2, '0')
-        const dayStr = String(day).padStart(2, '0')
-        const dateKey = `${year}-${monthStr}-${dayStr}`
-        initialMap[dateKey] = {}
-        DEFAULT_HABITS.forEach((h, idx) => {
-          if ((day + idx) % 3 !== 0) {
-            initialMap[dateKey][h.id] = true
-          }
-        })
-      }
-      return initialMap
-    } catch {
-      return {}
-    }
-  })
-
-  // Add Habit Form state in modal
+  // Add Task/Habit form state in modal
   const [newTitle, setNewTitle] = useState('')
-  const [newEmoji, setNewEmoji] = useState('✨')
-  const [newScheduleType, setNewScheduleType] = useState<HabitScheduleType>('EVERY_DAY')
-  const [newSpecificDayOfMonth, setNewSpecificDayOfMonth] = useState<number>(1)
-  const [newRangeStartDay, setNewRangeStartDay] = useState<number>(1)
-  const [newRangeEndDay, setNewRangeEndDay] = useState<number>(15)
-  const [newSpecificDate, setNewSpecificDate] = useState<string>(() => {
-    const today = new Date()
-    return today.toISOString().split('T')[0]
-  })
-
-  // Edit Habit state in modal
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [editEmoji, setEditEmoji] = useState('')
-  const [editScheduleType, setEditScheduleType] = useState<HabitScheduleType>('EVERY_DAY')
-  const [editSpecificDayOfMonth, setEditSpecificDayOfMonth] = useState<number>(1)
-  const [editRangeStartDay, setEditRangeStartDay] = useState<number>(1)
-  const [editRangeEndDay, setEditRangeEndDay] = useState<number>(15)
-  const [editSpecificDate, setEditSpecificDate] = useState<string>('')
+  const [newPriority, setNewPriority] = useState<Priority>('MEDIUM')
+  const [newCategory, setNewCategory] = useState('Work')
+  const [newDeadline, setNewDeadline] = useState('')
+  const [newDescription, setNewDescription] = useState('')
 
   // Toast notice for locked dates
   const [lockedNotice, setLockedNotice] = useState<string | null>(null)
-
-  // Persist habits to localStorage
-  useEffect(() => {
-    localStorage.setItem('nova_daily_habits', JSON.stringify(habits))
-  }, [habits])
-
-  // Persist checkMap to localStorage
-  useEffect(() => {
-    localStorage.setItem('nova_habit_checks', JSON.stringify(checkMap))
-  }, [checkMap])
 
   // Current year & month details
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
   const totalDaysInMonth = new Date(year, month + 1, 0).getDate()
 
-  // Midnight today reference for strict comparison
+  // Midnight today reference for strict date comparisons
   const today = new Date()
   const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
 
@@ -173,6 +93,7 @@ export default function DailyHabitTracker({
         dayNum,
         dayOfWeek,
         dateKey,
+        dayMidnight,
         isToday,
         isPast,
         isFuture,
@@ -199,106 +120,14 @@ export default function DailyHabitTracker({
     return result
   }, [daysArray])
 
-  // Helper to determine if a habit applies on a specific day
-  const isHabitActiveOnDay = (habit: DailyHabit, dayNum: number, dateKey: string) => {
-    const sched = habit.scheduleType || 'EVERY_DAY'
-    if (sched === 'EVERY_DAY') return true
-    if (sched === 'SPECIFIC_DAY_OF_MONTH') {
-      return (habit.specificDayOfMonth || 1) === dayNum
+  // Helper to determine if a task existed on or before a given day based on real database timestamps
+  const getTaskCreationMidnight = (task: Task): number => {
+    if (task.createdAt) {
+      const d = new Date(task.createdAt)
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
     }
-    if (sched === 'DATE_RANGE') {
-      const start = habit.rangeStartDay || 1
-      const end = habit.rangeEndDay || totalDaysInMonth
-      return dayNum >= start && dayNum <= end
-    }
-    if (sched === 'SPECIFIC_DATE') {
-      return habit.specificDate === dateKey
-    }
-    return true
-  }
-
-  // Toggle checkbox state for habit on a specific dateKey (ONLY ALLOWED FOR TODAY)
-  const handleToggleCheck = (habit: DailyHabit, day: (typeof daysArray)[0]) => {
-    if (!isHabitActiveOnDay(habit, day.dayNum, day.dateKey)) return
-
-    if (day.isLocked) {
-      const reason = day.isFuture ? 'Future dates are locked.' : 'Past dates are locked records.'
-      setLockedNotice(reason)
-      setTimeout(() => setLockedNotice(null), 2500)
-      return
-    }
-
-    setCheckMap((prev) => {
-      const dayChecks = prev[day.dateKey] || {}
-      const newDayChecks = {
-        ...dayChecks,
-        [habit.id]: !dayChecks[habit.id]
-      }
-      return {
-        ...prev,
-        [day.dateKey]: newDayChecks
-      }
-    })
-  }
-
-  // Add new habit (within modal)
-  const handleAddHabit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newTitle.trim()) return
-    const newHabit: DailyHabit = {
-      id: 'h_' + Date.now(),
-      title: newTitle.trim(),
-      emoji: newEmoji.trim() || '✨',
-      scheduleType: newScheduleType,
-      specificDayOfMonth: newScheduleType === 'SPECIFIC_DAY_OF_MONTH' ? Number(newSpecificDayOfMonth) : undefined,
-      rangeStartDay: newScheduleType === 'DATE_RANGE' ? Number(newRangeStartDay) : undefined,
-      rangeEndDay: newScheduleType === 'DATE_RANGE' ? Number(newRangeEndDay) : undefined,
-      specificDate: newScheduleType === 'SPECIFIC_DATE' ? newSpecificDate : undefined,
-      createdAt: new Date().toISOString()
-    }
-    setHabits((prev) => [...prev, newHabit])
-    setNewTitle('')
-    setNewEmoji('✨')
-    setNewScheduleType('EVERY_DAY')
-  }
-
-  // Start editing habit
-  const handleStartEdit = (habit: DailyHabit) => {
-    setEditingId(habit.id)
-    setEditTitle(habit.title)
-    setEditEmoji(habit.emoji || '✨')
-    setEditScheduleType(habit.scheduleType || 'EVERY_DAY')
-    setEditSpecificDayOfMonth(habit.specificDayOfMonth || 1)
-    setEditRangeStartDay(habit.rangeStartDay || 1)
-    setEditRangeEndDay(habit.rangeEndDay || 15)
-    setEditSpecificDate(habit.specificDate || '')
-  }
-
-  // Save edited habit
-  const handleSaveEdit = (id: string) => {
-    if (!editTitle.trim()) return
-    setHabits((prev) =>
-      prev.map((h) =>
-        h.id === id
-          ? {
-              ...h,
-              title: editTitle.trim(),
-              emoji: editEmoji.trim() || '✨',
-              scheduleType: editScheduleType,
-              specificDayOfMonth: editScheduleType === 'SPECIFIC_DAY_OF_MONTH' ? Number(editSpecificDayOfMonth) : undefined,
-              rangeStartDay: editScheduleType === 'DATE_RANGE' ? Number(editRangeStartDay) : undefined,
-              rangeEndDay: editScheduleType === 'DATE_RANGE' ? Number(editRangeEndDay) : undefined,
-              specificDate: editScheduleType === 'SPECIFIC_DATE' ? editSpecificDate : undefined
-            }
-          : h
-      )
-    )
-    setEditingId(null)
-  }
-
-  // Delete habit
-  const handleDeleteHabit = (id: string) => {
-    setHabits((prev) => prev.filter((h) => h.id !== id))
+    // Fallback if createdAt not present: consider created today
+    return todayMidnight
   }
 
   // Month navigation
@@ -314,51 +143,63 @@ export default function DailyHabitTracker({
     setCurrentDate(new Date())
   }
 
-  // Statistics
-  const todayMonthStr = String(today.getMonth() + 1).padStart(2, '0')
-  const todayDayStr = String(today.getDate()).padStart(2, '0')
-  const todayDateKey = `${today.getFullYear()}-${todayMonthStr}-${todayDayStr}`
-  const todayDayNum = today.getDate()
+  // Handle task toggle on Today
+  const handleCellClick = (task: Task, day: (typeof daysArray)[0]) => {
+    const taskCreatedMidnight = getTaskCreationMidnight(task)
+    if (day.dayMidnight < taskCreatedMidnight) {
+      setLockedNotice('No record. Task was not created on this date.')
+      setTimeout(() => setLockedNotice(null), 2500)
+      return
+    }
 
-  // Habits active today
-  const activeHabitsToday = useMemo(() => {
-    return habits.filter((h) => isHabitActiveOnDay(h, todayDayNum, todayDateKey))
-  }, [habits, todayDayNum, todayDateKey])
+    if (day.isLocked) {
+      const reason = day.isFuture ? 'Future dates are locked.' : 'Historical records are locked.'
+      setLockedNotice(reason)
+      setTimeout(() => setLockedNotice(null), 2500)
+      return
+    }
 
-  // Today completed count
+    if (task.id) {
+      onToggleTask(task.id)
+    }
+  }
+
+  // Add new task / habit in modal
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTitle.trim()) return
+
+    await onCreateTask({
+      title: newTitle.trim(),
+      description: newDescription.trim() || undefined,
+      priority: newPriority,
+      category: newCategory.trim() || 'Work',
+      deadline: newDeadline || undefined,
+      completed: false
+    })
+
+    setNewTitle('')
+    setNewDescription('')
+    setNewPriority('MEDIUM')
+    setNewDeadline('')
+    setModalOpen(false)
+  }
+
+  // Statistics calculation from REAL DATA ONLY
+  const activeTasksToday = useMemo(() => {
+    return tasks.filter((t) => getTaskCreationMidnight(t) <= todayMidnight)
+  }, [tasks, todayMidnight])
+
   const todayCompletedCount = useMemo(() => {
-    const todayMap = checkMap[todayDateKey] || {}
-    return activeHabitsToday.filter((h) => todayMap[h.id]).length
-  }, [checkMap, todayDateKey, activeHabitsToday])
+    return activeTasksToday.filter((t) => t.completed).length
+  }, [activeTasksToday])
 
-  // Total completed habits in the whole month
-  const monthTotalChecks = useMemo(() => {
-    let count = 0
-    daysArray.forEach((day) => {
-      const dayMap = checkMap[day.dateKey] || {}
-      habits.forEach((h) => {
-        if (isHabitActiveOnDay(h, day.dayNum, day.dateKey) && dayMap[h.id]) {
-          count++
-        }
-      })
-    })
-    return count
-  }, [daysArray, checkMap, habits])
+  const monthTotalCompleted = useMemo(() => {
+    return tasks.filter((t) => t.completed).length
+  }, [tasks])
 
-  // Total possible active checks in the month
-  const totalPossibleChecks = useMemo(() => {
-    let total = 0
-    daysArray.forEach((day) => {
-      habits.forEach((h) => {
-        if (isHabitActiveOnDay(h, day.dayNum, day.dateKey)) {
-          total++
-        }
-      })
-    })
-    return total
-  }, [daysArray, habits])
-
-  const overallMonthProgress = totalPossibleChecks > 0 ? Math.round((monthTotalChecks / totalPossibleChecks) * 100) : 0
+  const overallProgress =
+    tasks.length > 0 ? Math.round((tasks.filter((t) => t.completed).length / tasks.length) * 100) : 0
 
   return (
     <div className="w-full space-y-6">
@@ -377,7 +218,7 @@ export default function DailyHabitTracker({
         )}
       </AnimatePresence>
 
-      {/* Top Header Card with Month & Progress Stats */}
+      {/* Top Header Card with Month & Real Progress Stats */}
       <GlassPanel className="p-5 md:p-6 border border-white/[0.08] shadow-glass relative overflow-hidden">
         <div className="absolute top-0 right-1/4 w-96 h-40 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-10 w-72 h-32 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -417,19 +258,19 @@ export default function DailyHabitTracker({
                 </button>
               </div>
               <p className="text-xs text-muted mt-1">
-                Daily habit consistency matrix in real time. Past & future dates are locked.
+                Real-time habit consistency matrix. Only real database tasks and active check-ins are tracked.
               </p>
             </div>
           </div>
 
-          {/* Right: Metrics Badges & Progress Bar */}
+          {/* Right: Real Metrics Badges & Progress Bar */}
           <div className="flex flex-wrap items-center gap-6 lg:gap-8">
             <div className="text-center lg:text-left">
               <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
-                Number of Habits
+                Total Tasks
               </span>
               <span className="text-2xl font-bold font-mono text-silver luminous-number">
-                {habits.length}
+                {tasks.length}
               </span>
             </div>
 
@@ -441,48 +282,63 @@ export default function DailyHabitTracker({
                 <span className="text-2xl font-bold font-mono text-cyan-300 luminous-number">
                   {todayCompletedCount}
                 </span>
-                <span className="text-xs text-muted">/ {activeHabitsToday.length}</span>
+                <span className="text-xs text-muted">/ {activeTasksToday.length}</span>
               </div>
             </div>
 
             <div className="text-center lg:text-left">
               <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block">
-                Month Total
+                Completed
               </span>
               <span className="text-2xl font-bold font-mono text-emerald-300 luminous-number">
-                {monthTotalChecks}
+                {monthTotalCompleted}
               </span>
             </div>
 
             <div className="min-w-[180px] flex-1 lg:flex-initial">
               <div className="flex items-center justify-between text-xs mb-1.5">
                 <span className="font-semibold text-muted uppercase tracking-wider text-[11px]">
-                  Progress
+                  Real Progress
                 </span>
-                <span className="font-mono font-bold text-cyan-300">{overallMonthProgress}%</span>
+                <span className="font-mono font-bold text-cyan-300">
+                  {tasks.length === 0 ? '0%' : `${overallProgress}%`}
+                </span>
               </div>
               <div className="w-full h-3 bg-white/[0.04] rounded-full border border-white/[0.08] overflow-hidden p-0.5">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${overallMonthProgress}%` }}
+                  animate={{ width: `${overallProgress}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-violet-500 shadow-glow"
                 />
               </div>
             </div>
 
-            {/* Edit Habits Button (Visible only in Daily Task mode, hidden in Daily Matrix view) */}
-            {showEditHabitButton && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setModalOpen(true)}
-                className="h-10 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-void-950 font-semibold text-xs flex items-center gap-2 shadow-glow hover:opacity-90 transition-all"
-              >
-                <Settings2 size={16} />
-                <span>Edit Habits</span>
-              </motion.button>
-            )}
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              {onOpenTutorial && (
+                <button
+                  onClick={onOpenTutorial}
+                  className="h-10 px-3.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-silver border border-white/[0.1] font-semibold text-xs flex items-center gap-1.5 transition-all"
+                  title="Watch Video Tutorial"
+                >
+                  <Play size={14} className="text-cyan-400 fill-current" />
+                  <span className="hidden sm:inline">Tutorial</span>
+                </button>
+              )}
+
+              {showEditHabitButton && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setModalOpen(true)}
+                  className="h-10 px-4 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-void-950 font-semibold text-xs flex items-center gap-2 shadow-glow hover:opacity-90 transition-all"
+                >
+                  <Plus size={16} />
+                  <span>Add Task</span>
+                </motion.button>
+              )}
+            </div>
           </div>
         </div>
       </GlassPanel>
@@ -496,11 +352,11 @@ export default function DailyHabitTracker({
               <tr className="border-b border-white/[0.08] bg-white/[0.015]">
                 <th
                   rowSpan={2}
-                  className="sticky left-0 z-20 bg-void-950/95 backdrop-blur-md px-4 py-3 min-w-[220px] max-w-[260px] border-r border-white/[0.08] text-xs font-bold uppercase tracking-wider text-cyan-300"
+                  className="sticky left-0 z-20 bg-void-950/95 backdrop-blur-md px-4 py-3 min-w-[220px] max-w-[280px] border-r border-white/[0.08] text-xs font-bold uppercase tracking-wider text-cyan-300"
                 >
                   <div className="flex items-center justify-between">
-                    <span>My Habits</span>
-                    <span className="text-[10px] text-muted font-normal">({habits.length})</span>
+                    <span>Active Tasks</span>
+                    <span className="text-[10px] text-muted font-normal font-mono">({tasks.length})</span>
                   </div>
                 </th>
                 {weeks.map((week) => (
@@ -541,107 +397,163 @@ export default function DailyHabitTracker({
             </thead>
 
             <tbody>
-              {habits.length === 0 ? (
+              {tasks.length === 0 ? (
                 <tr>
-                  <td colSpan={daysArray.length + 1} className="py-12 text-center text-xs text-muted">
-                    No habits configured. Use "Daily Task" to add your recurring routines.
+                  <td colSpan={daysArray.length + 1} className="py-16 text-center">
+                    <div className="max-w-md mx-auto space-y-3 px-4">
+                      <div className="h-12 w-12 rounded-2xl bg-cyan-500/10 border border-cyan-400/20 mx-auto flex items-center justify-center text-cyan-400 shadow-glow">
+                        <Sparkles size={22} />
+                      </div>
+                      <h3 className="text-base font-display font-semibold text-silver">
+                        Welcome to your NOVA workspace
+                      </h3>
+                      <p className="text-xs text-muted leading-relaxed">
+                        You don't have any tasks yet. Create your first task to start tracking your real-world productivity.
+                      </p>
+                      <div className="flex items-center justify-center gap-3 pt-2">
+                        {onOpenTutorial && (
+                          <button
+                            onClick={onOpenTutorial}
+                            className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-silver text-xs font-medium transition-all flex items-center gap-1.5"
+                          >
+                            <Play size={13} className="text-cyan-400 fill-current" />
+                            <span>Watch Tutorial</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setModalOpen(true)}
+                          className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-void-950 font-semibold text-xs shadow-glow flex items-center gap-1.5 hover:opacity-90 transition-all"
+                        >
+                          <Plus size={14} />
+                          <span>+ Create Task</span>
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                habits.map((habit, hIdx) => (
-                  <tr
-                    key={habit.id}
-                    className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${
-                      hIdx % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.005]'
-                    }`}
-                  >
-                    {/* Clean Habit Label Column */}
-                    <td className="sticky left-0 z-10 bg-void-950/95 backdrop-blur-md px-4 py-2.5 border-r border-white/[0.08]">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 truncate" title={habit.title}>
-                          <span className="text-base flex-shrink-0">{habit.emoji || '✨'}</span>
-                          <span className="text-xs font-medium text-silver truncate">
-                            {habit.title}
-                          </span>
+                tasks.map((task, tIdx) => {
+                  const taskCreatedMidnight = getTaskCreationMidnight(task)
+
+                  return (
+                    <tr
+                      key={task.id || tIdx}
+                      className={`border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors ${
+                        tIdx % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.005]'
+                      }`}
+                    >
+                      {/* Task Label Column */}
+                      <td className="sticky left-0 z-10 bg-void-950/95 backdrop-blur-md px-4 py-2.5 border-r border-white/[0.08]">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 truncate" title={task.title}>
+                            <span className="text-xs font-medium text-silver truncate">
+                              {task.title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {task.category && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] text-muted font-mono">
+                                {task.category}
+                              </span>
+                            )}
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                                task.priority === 'HIGH'
+                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                  : task.priority === 'LOW'
+                                  ? 'bg-white/[0.04] text-muted'
+                                  : 'bg-purple-500/20 text-purple-300'
+                              }`}
+                            >
+                              {task.priority}
+                            </span>
+                          </div>
                         </div>
-                        {habit.scheduleType && habit.scheduleType !== 'EVERY_DAY' && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-mono flex-shrink-0">
-                            {habit.scheduleType === 'SPECIFIC_DAY_OF_MONTH'
-                              ? `${habit.specificDayOfMonth}th`
-                              : habit.scheduleType === 'DATE_RANGE'
-                              ? `${habit.rangeStartDay}-${habit.rangeEndDay}`
-                              : 'Single'}
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Checkbox Columns for each day */}
-                    {daysArray.map((day) => {
-                      const isActive = isHabitActiveOnDay(habit, day.dayNum, day.dateKey)
-                      const isChecked = !!checkMap[day.dateKey]?.[habit.id]
+                      {/* Day Columns */}
+                      {daysArray.map((day) => {
+                        const isPriorToCreation = day.dayMidnight < taskCreatedMidnight
+                        const isFutureDate = day.dayMidnight > todayMidnight
 
-                      if (!isActive) {
+                        // If day is before task creation: strictly NO DATA ("—")
+                        if (isPriorToCreation) {
+                          return (
+                            <td
+                              key={day.dateKey}
+                              className="text-center p-1 border-r border-white/[0.02] opacity-25 select-none bg-black/10"
+                              title="Task did not exist on this date"
+                            >
+                              <span className="text-[11px] text-muted font-mono">—</span>
+                            </td>
+                          )
+                        }
+
+                        // If day is in future: locked ("—")
+                        if (isFutureDate) {
+                          return (
+                            <td
+                              key={day.dateKey}
+                              className="text-center p-1 border-r border-white/[0.02] opacity-25 select-none bg-black/20"
+                              title="Future date locked"
+                            >
+                              <span className="text-[11px] text-muted font-mono">—</span>
+                            </td>
+                          )
+                        }
+
+                        // Day is valid: either completed (✓) or active pending (○)
+                        const isChecked = task.completed
+
                         return (
                           <td
                             key={day.dateKey}
-                            className="text-center p-1 border-r border-white/[0.02] opacity-20 select-none bg-black/10"
+                            onClick={() => handleCellClick(task, day)}
+                            className={`text-center p-1 border-r border-white/[0.03] transition-colors select-none ${
+                              day.isToday
+                                ? 'bg-cyan-500/[0.08] cursor-pointer hover:bg-cyan-500/20'
+                                : 'opacity-80 cursor-not-allowed bg-black/10'
+                            }`}
                           >
-                            <span className="text-[11px] text-muted font-mono">—</span>
+                            <div className="flex items-center justify-center">
+                              <button
+                                type="button"
+                                disabled={day.isLocked}
+                                className={`h-5 w-5 rounded-md border flex items-center justify-center transition-all ${
+                                  isChecked
+                                    ? day.isToday
+                                      ? 'bg-gradient-to-br from-emerald-500 to-cyan-500 border-emerald-400 text-void-950 shadow-glow scale-105'
+                                      : 'bg-emerald-500/30 border-emerald-500/40 text-emerald-300'
+                                    : day.isToday
+                                    ? 'border-cyan-400/60 bg-white/[0.03] hover:border-cyan-300 shadow-glow'
+                                    : 'border-white/[0.08] bg-transparent'
+                                }`}
+                                title={
+                                  day.isToday
+                                    ? `Click to toggle "${task.title}" for Today`
+                                    : isChecked
+                                    ? `"${task.title}" completed`
+                                    : `"${task.title}" pending on ${day.dayNum} ${MONTH_NAMES[month]}`
+                                }
+                              >
+                                {isChecked ? (
+                                  <Check size={13} strokeWidth={3.5} />
+                                ) : day.isToday ? null : (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                                )}
+                              </button>
+                            </div>
                           </td>
                         )
-                      }
-
-                      return (
-                        <td
-                          key={day.dateKey}
-                          onClick={() => handleToggleCheck(habit, day)}
-                          className={`text-center p-1 border-r border-white/[0.03] transition-colors select-none ${
-                            day.isToday
-                              ? 'bg-cyan-500/[0.08] cursor-pointer hover:bg-cyan-500/20'
-                              : day.isPast
-                              ? 'opacity-80 cursor-not-allowed bg-black/10'
-                              : 'opacity-30 cursor-not-allowed bg-black/20'
-                          }`}
-                        >
-                          <div className="flex items-center justify-center">
-                            <button
-                              type="button"
-                              disabled={day.isLocked}
-                              className={`h-5 w-5 rounded-md border flex items-center justify-center transition-all ${
-                                isChecked
-                                  ? day.isToday
-                                    ? 'bg-gradient-to-br from-emerald-500 to-cyan-500 border-emerald-400 text-void-950 shadow-glow scale-105'
-                                    : 'bg-emerald-500/40 border-emerald-500/50 text-emerald-300'
-                                  : day.isToday
-                                  ? 'border-cyan-400/60 bg-white/[0.03] hover:border-cyan-300 shadow-glow'
-                                  : 'border-white/[0.08] bg-transparent'
-                              }`}
-                              title={
-                                day.isToday
-                                  ? `Click to toggle ${habit.title} for Today`
-                                  : day.isPast
-                                  ? `${habit.title} on ${day.dayNum} ${MONTH_NAMES[month]} (Past record locked)`
-                                  : `${habit.title} on ${day.dayNum} ${MONTH_NAMES[month]} (Future date locked)`
-                              }
-                            >
-                              {isChecked ? (
-                                <Check size={13} strokeWidth={3.5} />
-                              ) : day.isLocked ? (
-                                <span className="w-1 h-1 rounded-full bg-white/10" />
-                              ) : null}
-                            </button>
-                          </div>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))
+                      })}
+                    </tr>
+                  )
+                })
               )}
             </tbody>
 
-            {/* Bottom Summary Rows (Progress %, Done, Not Done) */}
-            {habits.length > 0 && (
+            {/* Bottom Summary Rows (Progress %, Done, Not Done) from REAL DATA */}
+            {tasks.length > 0 && (
               <tfoot className="border-t-2 border-white/[0.08] bg-white/[0.02]">
                 {/* 1. Progress % Row */}
                 <tr className="border-b border-white/[0.04]">
@@ -649,21 +561,32 @@ export default function DailyHabitTracker({
                     Progress
                   </td>
                   {daysArray.map((day) => {
-                    const activeHabitsForDay = habits.filter((h) => isHabitActiveOnDay(h, day.dayNum, day.dateKey))
-                    const dayChecks = checkMap[day.dateKey] || {}
-                    const done = activeHabitsForDay.filter((h) => dayChecks[h.id]).length
-                    const pct = activeHabitsForDay.length > 0 ? Math.round((done / activeHabitsForDay.length) * 100) : 0
+                    const activeTasksForDay = tasks.filter(
+                      (t) => getTaskCreationMidnight(t) <= day.dayMidnight && day.dayMidnight <= todayMidnight
+                    )
+                    const done = activeTasksForDay.filter((t) => t.completed).length
+                    const pct = activeTasksForDay.length > 0 ? Math.round((done / activeTasksForDay.length) * 100) : 0
+
+                    if (activeTasksForDay.length === 0 || day.dayMidnight > todayMidnight) {
+                      return (
+                        <td
+                          key={day.dateKey}
+                          className="text-center py-1.5 px-0.5 border-r border-white/[0.03] text-[10px] font-mono text-muted/30"
+                        >
+                          —
+                        </td>
+                      )
+                    }
+
                     return (
                       <td
                         key={day.dateKey}
                         className={`text-center py-1.5 px-0.5 border-r border-white/[0.03] text-[10px] font-mono font-bold ${
                           pct === 100
                             ? 'text-emerald-400'
-                            : pct >= 70
+                            : pct >= 50
                             ? 'text-cyan-300'
-                            : pct > 0
-                            ? 'text-purple-300'
-                            : 'text-muted/30'
+                            : 'text-purple-300'
                         } ${day.isToday ? 'bg-cyan-500/[0.12] text-cyan-300 font-extrabold' : ''}`}
                       >
                         {pct}%
@@ -678,14 +601,27 @@ export default function DailyHabitTracker({
                     Done
                   </td>
                   {daysArray.map((day) => {
-                    const activeHabitsForDay = habits.filter((h) => isHabitActiveOnDay(h, day.dayNum, day.dateKey))
-                    const dayChecks = checkMap[day.dateKey] || {}
-                    const done = activeHabitsForDay.filter((h) => dayChecks[h.id]).length
+                    const activeTasksForDay = tasks.filter(
+                      (t) => getTaskCreationMidnight(t) <= day.dayMidnight && day.dayMidnight <= todayMidnight
+                    )
+                    const done = activeTasksForDay.filter((t) => t.completed).length
+
+                    if (activeTasksForDay.length === 0 || day.dayMidnight > todayMidnight) {
+                      return (
+                        <td
+                          key={day.dateKey}
+                          className="text-center py-1.5 px-0.5 border-r border-white/[0.03] text-[10px] font-mono text-muted/30"
+                        >
+                          —
+                        </td>
+                      )
+                    }
+
                     return (
                       <td
                         key={day.dateKey}
                         className={`text-center py-1.5 px-0.5 border-r border-white/[0.03] text-[10px] font-mono font-bold ${
-                          done > 0 ? 'text-emerald-400' : 'text-muted/30'
+                          done > 0 ? 'text-emerald-400' : 'text-muted/40'
                         } ${day.isToday ? 'bg-cyan-500/[0.12]' : ''}`}
                       >
                         {done}
@@ -697,13 +633,26 @@ export default function DailyHabitTracker({
                 {/* 3. Not Done Count Row */}
                 <tr>
                   <td className="sticky left-0 z-10 bg-void-950/95 backdrop-blur-md px-4 py-2 border-r border-white/[0.08] text-[11px] font-semibold text-rose-400/80">
-                    Not Done
+                    Pending
                   </td>
                   {daysArray.map((day) => {
-                    const activeHabitsForDay = habits.filter((h) => isHabitActiveOnDay(h, day.dayNum, day.dateKey))
-                    const dayChecks = checkMap[day.dateKey] || {}
-                    const done = activeHabitsForDay.filter((h) => dayChecks[h.id]).length
-                    const notDone = activeHabitsForDay.length - done
+                    const activeTasksForDay = tasks.filter(
+                      (t) => getTaskCreationMidnight(t) <= day.dayMidnight && day.dayMidnight <= todayMidnight
+                    )
+                    const done = activeTasksForDay.filter((t) => t.completed).length
+                    const notDone = activeTasksForDay.length - done
+
+                    if (activeTasksForDay.length === 0 || day.dayMidnight > todayMidnight) {
+                      return (
+                        <td
+                          key={day.dateKey}
+                          className="text-center py-1.5 px-0.5 border-r border-white/[0.03] text-[10px] font-mono text-muted/30"
+                        >
+                          —
+                        </td>
+                      )
+                    }
+
                     return (
                       <td
                         key={day.dateKey}
@@ -722,7 +671,7 @@ export default function DailyHabitTracker({
         </div>
       </GlassPanel>
 
-      {/* ===== DAILY HABIT & TASK MANAGER MODAL (WITH SCHEDULING OPTIONS & RENAMING) ===== */}
+      {/* ===== ADD / MANAGE REAL TASKS MODAL ===== */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
@@ -740,10 +689,10 @@ export default function DailyHabitTracker({
                   </div>
                   <div>
                     <h3 className="text-lg font-display font-semibold text-silver">
-                      Manage Daily Habits & Scheduled Tasks
+                      Create Real-Time Task
                     </h3>
                     <p className="text-xs text-muted">
-                      Add, rename, customize recurrence, or remove routines tracked in your Daily Matrix.
+                      Saved directly to your database and tracked in your real-time matrix.
                     </p>
                   </div>
                 </div>
@@ -755,257 +704,118 @@ export default function DailyHabitTracker({
                 </button>
               </div>
 
-              {/* Add New Habit Section with Recurrence Options */}
-              <form onSubmit={handleAddHabit} className="py-4 border-b border-white/[0.06] space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-14">
-                    <label className="text-[10px] text-muted block mb-1">Emoji</label>
+              {/* Add New Task Form */}
+              <form onSubmit={handleAddSubmit} className="py-4 border-b border-white/[0.06] space-y-3">
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">Task Title</label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="What needs to get done?"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-silver focus:outline-none focus:border-cyan-400 placeholder:text-muted/60"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-muted block mb-1">Description (Optional)</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Add context, acceptance criteria, or links..."
+                    value={newDescription}
+                    onChange={(e) => setNewDescription(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-silver focus:outline-none focus:border-cyan-400 placeholder:text-muted/60 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-[10px] text-muted block mb-1">Priority</label>
+                    <select
+                      value={newPriority}
+                      onChange={(e) => setNewPriority(e.target.value as Priority)}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-silver focus:outline-none focus:border-cyan-400"
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] text-muted block mb-1">Category</label>
                     <input
                       type="text"
-                      value={newEmoji}
-                      onChange={(e) => setNewEmoji(e.target.value)}
-                      className="w-full text-center text-base bg-white/[0.03] border border-white/[0.08] rounded-xl px-1 py-2 text-silver focus:outline-none focus:border-cyan-400"
-                      maxLength={3}
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      placeholder="e.g. Work, Dev, Health..."
+                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-silver focus:outline-none focus:border-cyan-400"
                     />
                   </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] text-muted block mb-1">New Routine / Task Title</label>
+
+                  <div>
+                    <label className="text-[10px] text-muted block mb-1">Deadline Date</label>
                     <input
-                      type="text"
-                      required
-                      placeholder="e.g. Morning 30-min Cardio, Budget Tracking..."
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-silver focus:outline-none focus:border-cyan-400 placeholder:text-muted/60"
+                      type="date"
+                      value={newDeadline}
+                      onChange={(e) => setNewDeadline(e.target.value)}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-xs text-silver focus:outline-none focus:border-cyan-400"
                     />
                   </div>
                 </div>
 
-                {/* Schedule & Recurrence Picker */}
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <div className="w-full sm:w-auto">
-                    <label className="text-[10px] text-muted block mb-1">Schedule Frequency</label>
-                    <select
-                      value={newScheduleType}
-                      onChange={(e) => setNewScheduleType(e.target.value as HabitScheduleType)}
-                      className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-silver focus:outline-none focus:border-cyan-400"
-                    >
-                      <option value="EVERY_DAY">Every Day (Daily)</option>
-                      <option value="SPECIFIC_DAY_OF_MONTH">Specific Day in Every Month</option>
-                      <option value="DATE_RANGE">Set of Continuous Days (Range)</option>
-                      <option value="SPECIFIC_DATE">Single Specific Date</option>
-                    </select>
-                  </div>
-
-                  {/* Frequency Custom Parameters */}
-                  {newScheduleType === 'SPECIFIC_DAY_OF_MONTH' && (
-                    <div>
-                      <label className="text-[10px] text-muted block mb-1">Day of Month (1-31)</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={31}
-                        value={newSpecificDayOfMonth}
-                        onChange={(e) => setNewSpecificDayOfMonth(Number(e.target.value))}
-                        className="w-24 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-silver focus:outline-none focus:border-cyan-400"
-                      />
-                    </div>
-                  )}
-
-                  {newScheduleType === 'DATE_RANGE' && (
-                    <div className="flex items-center gap-2">
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">From Day</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={newRangeStartDay}
-                          onChange={(e) => setNewRangeStartDay(Number(e.target.value))}
-                          className="w-20 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-silver focus:outline-none focus:border-cyan-400"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-muted block mb-1">To Day</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={31}
-                          value={newRangeEndDay}
-                          onChange={(e) => setNewRangeEndDay(Number(e.target.value))}
-                          className="w-20 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-silver focus:outline-none focus:border-cyan-400"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {newScheduleType === 'SPECIFIC_DATE' && (
-                    <div>
-                      <label className="text-[10px] text-muted block mb-1">Target Date</label>
-                      <input
-                        type="date"
-                        value={newSpecificDate}
-                        onChange={(e) => setNewSpecificDate(e.target.value)}
-                        className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-silver focus:outline-none focus:border-cyan-400"
-                      />
-                    </div>
-                  )}
-
+                <div className="flex justify-end pt-2">
                   <button
                     type="submit"
-                    className="ml-auto mt-4 sm:mt-auto px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-void-950 font-semibold text-xs shadow-glow flex items-center gap-1.5 hover:opacity-90 transition-all"
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-violet-500 text-void-950 font-semibold text-xs shadow-glow flex items-center gap-1.5 hover:opacity-90 transition-all"
                   >
                     <Plus size={14} />
-                    <span>Add Routine</span>
+                    <span>Save Task to Database</span>
                   </button>
                 </div>
               </form>
 
-              {/* Habit List Management (Rename / Schedule Edit / Delete) */}
+              {/* Existing Tasks List */}
               <div className="flex-1 overflow-y-auto custom-scrollbar py-3 space-y-2 pr-1">
                 <span className="text-[11px] font-semibold text-muted uppercase tracking-wider block mb-2">
-                  Configured Routines ({habits.length})
+                  Your Real Tasks ({tasks.length})
                 </span>
 
-                {habits.length === 0 ? (
-                  <p className="text-xs text-muted py-6 text-center">No habits added yet.</p>
+                {tasks.length === 0 ? (
+                  <p className="text-xs text-muted py-6 text-center">No tasks saved yet.</p>
                 ) : (
-                  habits.map((habit) => (
+                  tasks.map((task) => (
                     <div
-                      key={habit.id}
-                      className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-cyan-500/30 transition-all space-y-2"
+                      key={task.id}
+                      className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-cyan-500/30 transition-all flex items-center justify-between"
                     >
-                      {editingId === habit.id ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={editEmoji}
-                              onChange={(e) => setEditEmoji(e.target.value)}
-                              className="w-10 text-center text-sm bg-white/10 rounded-lg px-1 py-1 text-silver border border-white/20"
-                              maxLength={3}
-                            />
-                            <input
-                              type="text"
-                              value={editTitle}
-                              onChange={(e) => setEditTitle(e.target.value)}
-                              className="flex-1 text-xs bg-white/10 rounded-lg px-3 py-1.5 text-silver focus:outline-none focus:border-cyan-400 border border-white/20"
-                              autoFocus
-                            />
-                          </div>
+                      <div className="truncate pr-3">
+                        <span
+                          className={`text-xs font-semibold block truncate ${
+                            task.completed ? 'text-muted line-through' : 'text-silver'
+                          }`}
+                        >
+                          {task.title}
+                        </span>
+                        <span className="text-[10px] text-muted">
+                          {task.category || 'General'} • Priority: {task.priority}
+                        </span>
+                      </div>
 
-                          <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <select
-                              value={editScheduleType}
-                              onChange={(e) => setEditScheduleType(e.target.value as HabitScheduleType)}
-                              className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-silver"
-                            >
-                              <option value="EVERY_DAY">Every Day</option>
-                              <option value="SPECIFIC_DAY_OF_MONTH">Day of Month</option>
-                              <option value="DATE_RANGE">Date Range</option>
-                              <option value="SPECIFIC_DATE">Specific Date</option>
-                            </select>
-
-                            {editScheduleType === 'SPECIFIC_DAY_OF_MONTH' && (
-                              <input
-                                type="number"
-                                min={1}
-                                max={31}
-                                value={editSpecificDayOfMonth}
-                                onChange={(e) => setEditSpecificDayOfMonth(Number(e.target.value))}
-                                className="w-16 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-silver"
-                              />
-                            )}
-
-                            {editScheduleType === 'DATE_RANGE' && (
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={31}
-                                  value={editRangeStartDay}
-                                  onChange={(e) => setEditRangeStartDay(Number(e.target.value))}
-                                  className="w-14 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-silver"
-                                />
-                                <span className="text-muted">to</span>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={31}
-                                  value={editRangeEndDay}
-                                  onChange={(e) => setEditRangeEndDay(Number(e.target.value))}
-                                  className="w-14 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-silver"
-                                />
-                              </div>
-                            )}
-
-                            {editScheduleType === 'SPECIFIC_DATE' && (
-                              <input
-                                type="date"
-                                value={editSpecificDate}
-                                onChange={(e) => setEditSpecificDate(e.target.value)}
-                                className="bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-silver"
-                              />
-                            )}
-
-                            <div className="flex items-center gap-1.5 ml-auto">
-                              <button
-                                type="button"
-                                onClick={() => handleSaveEdit(habit.id)}
-                                className="px-3 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors font-medium flex items-center gap-1"
-                              >
-                                <Check size={13} /> Save
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingId(null)}
-                                className="px-3 py-1 rounded-lg bg-white/10 text-muted hover:text-silver transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 truncate pr-3">
-                            <span className="text-lg">{habit.emoji || '✨'}</span>
-                            <div>
-                              <span className="text-xs font-semibold text-silver block">
-                                {habit.title}
-                              </span>
-                              <span className="text-[10px] text-muted">
-                                {habit.scheduleType === 'SPECIFIC_DAY_OF_MONTH'
-                                  ? `Repeats on ${habit.specificDayOfMonth}th of every month`
-                                  : habit.scheduleType === 'DATE_RANGE'
-                                  ? `Active from Day ${habit.rangeStartDay} to Day ${habit.rangeEndDay}`
-                                  : habit.scheduleType === 'SPECIFIC_DATE'
-                                  ? `Scheduled on ${habit.specificDate}`
-                                  : 'Daily routine (All days)'}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleStartEdit(habit)}
-                              className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-cyan-300 transition-colors"
-                              title="Rename / Edit schedule"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteHabit(habit.id)}
-                              className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-rose-400 transition-colors"
-                              title="Delete habit"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {task.id && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteTask(task.id!)}
+                            className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-rose-400 transition-colors"
+                            title="Delete task from database"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}

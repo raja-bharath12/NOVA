@@ -44,19 +44,32 @@ export default function TaskItem({ task, onToggle, onDelete }: Props) {
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-sm truncate transition-opacity ${task.completed ? 'text-muted line-through opacity-60' : 'text-silver'}`}>
+        <p className={`text-sm truncate transition-opacity font-medium ${task.completed ? 'text-muted line-through opacity-60' : 'text-silver'}`}>
           {task.title}
         </p>
-        {task.deadline && (
-          <p className="flex items-center gap-1 text-xs text-muted mt-0.5">
-            <Calendar size={11} /> {new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+        {task.description && (
+          <p className="text-xs text-muted/80 truncate mt-0.5">
+            {task.description}
           </p>
         )}
+        <div className="flex items-center gap-2 mt-1">
+          {task.category && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.05] text-muted font-mono">
+              {task.category}
+            </span>
+          )}
+          {task.deadline && (
+            <p className="flex items-center gap-1 text-[11px] text-muted font-mono">
+              <Calendar size={11} /> {new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </p>
+          )}
+        </div>
       </div>
 
-      <span className={`label-tracked border rounded-full px-2 py-0.5 flex-shrink-0 ${PRIORITY_STYLES[task.priority]}`}>
+      <span className={`label-tracked border rounded-full px-2 py-0.5 flex-shrink-0 text-[10px] font-mono font-semibold ${PRIORITY_STYLES[task.priority]}`}>
         {task.priority}
       </span>
+
 
       <button
         onClick={() => task.id && onDelete(task.id)}

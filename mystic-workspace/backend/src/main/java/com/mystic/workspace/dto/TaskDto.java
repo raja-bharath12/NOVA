@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 @Getter
@@ -26,4 +27,6 @@ public class TaskDto {
     private String category;
     private LocalDate deadline;
     private boolean completed;
+    private Instant createdAt;
 }
+
