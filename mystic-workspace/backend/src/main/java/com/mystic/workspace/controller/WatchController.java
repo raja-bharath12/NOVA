@@ -107,20 +107,35 @@ public class WatchController {
     }
 
     /**
-     * HTTP 206 Partial Content video streaming endpoint supporting Range requests.
-     * Accessible with Bearer header or token query parameter.
+     * HTTP 206 Partial Content video streaming endpoint supporting Range requests and direct S3 presigned redirects.
      */
     @GetMapping("/media/{id}/stream")
     public ResponseEntity<?> streamVideo(
             @PathVariable Long id,
             @RequestHeader HttpHeaders headers,
             @RequestParam(value = "token", required = false) String tokenParam,
+            @RequestParam(value = "redirect", required = false, defaultValue = "true") boolean redirect,
             @AuthenticationPrincipal UserPrincipal principal
     ) throws IOException {
         WatchMedia media = watchService.getMediaEntity(id);
-        Resource videoResource = watchService.loadMediaResource(media);
 
-        long contentLength = videoResource.contentLength();
+        // 1. Direct Presigned S3 Streaming:
+        // If S3 storage is enabled, redirect directly to a presigned S3 GET URL so the browser streams natively with range support
+        if (redirect && "S3".equalsIgnoreCase(storageService.getStorageType())) {
+            String directUrl = storageService.getDirectDownloadUrl(media.getStorageKey(), java.time.Duration.ofHours(4));
+            if (directUrl != null && !directUrl.isBlank()) {
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .location(java.net.URI.create(directUrl))
+                        .build();
+            }
+        }
+
+        // 2. Fallback / Local Storage HTTP 206 Range Streaming
+        Resource videoResource = watchService.loadMediaResource(media);
+        long contentLength = (media.getFileSize() != null && media.getFileSize() > 0)
+                ? media.getFileSize()
+                : videoResource.contentLength();
+
         MediaType mediaType;
         try {
             mediaType = MediaType.parseMediaType(media.getMimeType());
@@ -151,6 +166,7 @@ public class WatchController {
                 .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + (start + rangeLength - 1) + "/" + contentLength)
                 .body(region);
     }
+
 
     // =========================================================================
     // 3. ROOM ENDPOINTS

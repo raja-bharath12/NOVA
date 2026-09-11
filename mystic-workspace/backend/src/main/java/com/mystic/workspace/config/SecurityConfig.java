@@ -63,8 +63,10 @@ public class SecurityConfig {
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/files/**", "/files/**", "/api/api/files/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/watch/media/*/stream", "/api/watch/media/**/stream", "/api/watch/media/*/hls/**").permitAll()
                 .anyRequest().authenticated()
             )
+
             .headers(headers -> headers.frameOptions(frame -> frame.disable()))
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
