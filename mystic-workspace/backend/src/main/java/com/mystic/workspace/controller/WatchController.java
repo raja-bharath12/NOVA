@@ -22,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import com.mystic.workspace.service.storage.StorageService;
 import java.util.List;
 
 @RestController
@@ -31,8 +32,10 @@ import java.util.List;
 public class WatchController {
 
     private final WatchService watchService;
+    private final StorageService storageService;
     private final UserRepository userRepository;
     private final JwtService jwtService;
+
 
     // =========================================================================
     // 1. DIRECT S3 PRESIGNED & MULTIPART UPLOAD ENDPOINTS (UP TO 5 GB)
