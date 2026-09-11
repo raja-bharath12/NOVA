@@ -34,7 +34,7 @@ public class MusicController {
     // 1. TRACKS
     // =========================================================================
 
-    @PostMapping(value = "/tracks/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = {"/tracks", "/tracks/upload"}, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public MusicDtos.TrackDto uploadTrack(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "title", required = false) String title,
