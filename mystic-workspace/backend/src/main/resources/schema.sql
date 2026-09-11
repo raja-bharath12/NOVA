@@ -230,3 +230,100 @@ CREATE TABLE IF NOT EXISTS whiteboards (
 
 CREATE INDEX IF NOT EXISTS idx_whiteboards_owner_id ON whiteboards(owner_id);
 CREATE INDEX IF NOT EXISTS idx_whiteboards_meeting_id ON whiteboards(meeting_id);
+
+-- -----------------------------------------------------------------------------
+-- 13. MUSIC TRACKS TABLE (Cloud Audio Library)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS music_tracks (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    artist VARCHAR(255) NOT NULL,
+    album VARCHAR(255),
+    original_filename VARCHAR(255) NOT NULL,
+    storage_key VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(100) NOT NULL,
+    file_size BIGINT NOT NULL,
+    duration DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    cover_art_url VARCHAR(1024),
+    uploader_id BIGINT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_music_tracks_uploader FOREIGN KEY (uploader_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_music_tracks_uploader ON music_tracks(uploader_id);
+CREATE INDEX IF NOT EXISTS idx_music_tracks_title ON music_tracks(title);
+
+-- -----------------------------------------------------------------------------
+-- 14. MUSIC ROOMS TABLE (Synchronized Music Jam Sessions)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS music_rooms (
+    id BIGSERIAL PRIMARY KEY,
+    room_code VARCHAR(255) NOT NULL UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    host_id BIGINT NOT NULL,
+    current_track_id BIGINT,
+    current_position DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    is_playing BOOLEAN NOT NULL DEFAULT FALSE,
+    playback_rate DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    is_collaborative BOOLEAN NOT NULL DEFAULT TRUE,
+    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+    last_synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_music_rooms_host FOREIGN KEY (host_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_music_rooms_current_track FOREIGN KEY (current_track_id) REFERENCES music_tracks(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_music_rooms_code ON music_rooms(room_code);
+CREATE INDEX IF NOT EXISTS idx_music_rooms_host ON music_rooms(host_id);
+CREATE INDEX IF NOT EXISTS idx_music_rooms_status ON music_rooms(status);
+
+-- -----------------------------------------------------------------------------
+-- 15. MUSIC ROOM MEMBERS TABLE
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS music_room_members (
+    id BIGSERIAL PRIMARY KEY,
+    room_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'LISTENER',
+    joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_music_members_room FOREIGN KEY (room_id) REFERENCES music_rooms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_music_members_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT uq_music_room_user UNIQUE (room_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_music_members_room ON music_room_members(room_id);
+CREATE INDEX IF NOT EXISTS idx_music_members_user ON music_room_members(user_id);
+
+-- -----------------------------------------------------------------------------
+-- 16. MUSIC ROOM QUEUE ITEMS TABLE
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS music_room_queue_items (
+    id BIGSERIAL PRIMARY KEY,
+    room_id BIGINT NOT NULL,
+    track_id BIGINT NOT NULL,
+    added_by_id BIGINT NOT NULL,
+    order_index INT NOT NULL DEFAULT 0,
+    added_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_music_queue_room FOREIGN KEY (room_id) REFERENCES music_rooms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_music_queue_track FOREIGN KEY (track_id) REFERENCES music_tracks(id) ON DELETE CASCADE,
+    CONSTRAINT fk_music_queue_added_by FOREIGN KEY (added_by_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_music_queue_room ON music_room_queue_items(room_id);
+CREATE INDEX IF NOT EXISTS idx_music_queue_order ON music_room_queue_items(room_id, order_index);
+
+-- -----------------------------------------------------------------------------
+-- 17. MUSIC ROOM MESSAGES TABLE
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS music_room_messages (
+    id BIGSERIAL PRIMARY KEY,
+    room_id BIGINT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT fk_music_messages_room FOREIGN KEY (room_id) REFERENCES music_rooms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_music_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_music_messages_room ON music_room_messages(room_id);
+CREATE INDEX IF NOT EXISTS idx_music_messages_created ON music_room_messages(created_at);
