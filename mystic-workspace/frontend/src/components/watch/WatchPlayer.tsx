@@ -14,10 +14,11 @@ import {
   ShieldCheck,
   Users,
   Sparkles,
-  Loader2
+  Loader2,
+  MessageSquare
 } from 'lucide-react'
 import Hls from 'hls.js'
-import type { WatchControlSignal, WatchMedia } from '../../types'
+import type { WatchChatMessage, WatchControlSignal, WatchMedia, User } from '../../types'
 
 interface WatchPlayerProps {
   media: WatchMedia
@@ -30,9 +31,18 @@ interface WatchPlayerProps {
   onToggleChat?: () => void
   isChatOpen?: boolean
   unreadCount?: number
+  messages?: WatchChatMessage[]
+  currentUser?: User | null
 }
 
 export type VideoQuality = 'Auto' | '1080p' | '720p' | '480p' | '360p'
+
+interface LiveBubble {
+  id: string
+  senderName: string
+  content: string
+  createdAt: number
+}
 
 export default function WatchPlayer({
   media,
@@ -44,7 +54,9 @@ export default function WatchPlayer({
   incomingSignal,
   onToggleChat,
   isChatOpen = false,
-  unreadCount = 0
+  unreadCount = 0,
+  messages = [],
+  currentUser
 }: WatchPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -62,6 +74,10 @@ export default function WatchPlayer({
   const [showQualityMenu, setShowQualityMenu] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // Floating YouTube-Live Chat Messages state
+  const [liveBubbles, setLiveBubbles] = useState<LiveBubble[]>([])
+  const lastSeenMsgCountRef = useRef(messages.length)
+
   // Player state
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -73,6 +89,45 @@ export default function WatchPlayer({
 
   // Anti-loop flag to distinguish remote updates from user gestures
   const isApplyingRemoteUpdateRef = useRef(false)
+
+  // Detect incoming live chat messages to render YouTube-live floating bubbles inside player/fullscreen
+  useEffect(() => {
+    if (messages.length > lastSeenMsgCountRef.current) {
+      const newMsgs = messages.slice(lastSeenMsgCountRef.current)
+      lastSeenMsgCountRef.current = messages.length
+
+      newMsgs.forEach((msg) => {
+        const bubble: LiveBubble = {
+          id: 'bubble_' + Date.now() + '_' + Math.random(),
+          senderName: msg.senderName || 'Participant',
+          content: msg.content,
+          createdAt: Date.now()
+        }
+
+        setLiveBubbles((prev) => [...prev.slice(-3), bubble]) // keep max 4 stacked bubbles
+
+        setTimeout(() => {
+          setLiveBubbles((current) => current.filter((b) => b.id !== bubble.id))
+        }, 5500)
+      })
+    } else {
+      lastSeenMsgCountRef.current = messages.length
+    }
+  }, [messages])
+
+  // Fullscreen state listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isFull = !!document.fullscreenElement || !!(document as any).webkitFullscreenElement
+      setIsFullscreen(isFull)
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+    }
+  }, [])
 
   // Format seconds to mm:ss or hh:mm:ss
   const formatTime = (secs: number) => {
@@ -368,7 +423,9 @@ export default function WatchPlayer({
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setControlsVisible(false)}
-      className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden select-none group rounded-2xl md:rounded-3xl border border-white/[0.08] shadow-2xl"
+      className={`relative w-full h-full bg-black flex items-center justify-center overflow-hidden select-none group shadow-2xl transition-all ${
+        isFullscreen ? 'rounded-none border-0' : 'rounded-2xl md:rounded-3xl border border-white/[0.08]'
+      }`}
     >
       {/* HTML5 Video Element */}
       <video
@@ -400,6 +457,32 @@ export default function WatchPlayer({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* YouTube-Live Style Floating In-Video Light Chat Stream (Always Active in Normal & Fullscreen) */}
+      <div className="absolute bottom-16 sm:bottom-20 left-3 sm:left-6 z-40 max-w-[280px] sm:max-w-md pointer-events-none flex flex-col gap-1.5">
+        <AnimatePresence>
+          {liveBubbles.map((bubble) => (
+            <motion.div
+              key={bubble.id}
+              initial={{ opacity: 0, y: 14, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+              transition={{ duration: 0.25 }}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-black/70 backdrop-blur-md border border-white/15 shadow-2xl text-xs pointer-events-auto"
+            >
+              <div className="h-5 w-5 rounded-full bg-gradient-to-tr from-violet-500 to-cyan-400 flex items-center justify-center text-[9px] font-bold text-void-950 flex-shrink-0 shadow-sm">
+                {bubble.senderName?.slice(0, 1).toUpperCase()}
+              </div>
+              <span className="font-semibold text-cyan-300 text-[11px] truncate max-w-[85px] sm:max-w-[100px]">
+                {bubble.senderName?.split(' ')[0]}:
+              </span>
+              <span className="text-white/95 text-xs truncate max-w-[160px] sm:max-w-xs drop-shadow-sm font-normal">
+                {bubble.content}
+              </span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
       {/* Top Overlay Badge (Room Info & Host Control Indicator) */}
       <AnimatePresence>
@@ -598,6 +681,26 @@ export default function WatchPlayer({
                     )}
                   </AnimatePresence>
                 </div>
+
+                {/* In-Player Chat Toggle */}
+                {onToggleChat && (
+                  <button
+                    onClick={onToggleChat}
+                    className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all relative ${
+                      isChatOpen
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-glow'
+                        : 'text-muted hover:text-silver hover:bg-white/[0.06]'
+                    }`}
+                    title="Toggle Live Chat"
+                  >
+                    <MessageSquare size={16} />
+                    {!isChatOpen && unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 h-3.5 min-w-[14px] px-1 rounded-full bg-cyan-400 text-void-950 text-[9px] font-bold flex items-center justify-center animate-pulse">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                )}
 
                 {/* Fullscreen Button */}
                 <button

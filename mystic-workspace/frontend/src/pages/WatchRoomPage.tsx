@@ -10,7 +10,8 @@ import {
   LogOut,
   Power,
   Shield,
-  AlertCircle
+  AlertCircle,
+  MessageSquare
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -379,6 +380,28 @@ export const WatchRoomPage: React.FC = () => {
             <span className="hidden md:inline">Viewers</span>
           </button>
 
+          {/* Chat Toggle Button in Header */}
+          <button
+            onClick={() => {
+              setIsChatOpen((prev) => !prev)
+              setUnreadCount(0)
+            }}
+            className={`flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl border text-xs font-semibold transition-all relative ${
+              isChatOpen
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-glow'
+                : 'bg-slate-800/90 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+            title="Toggle Live Chat"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden md:inline">Chat</span>
+            {!isChatOpen && unreadCount > 0 && (
+              <span className="h-4 min-w-[16px] px-1 rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 text-void-950 text-[10px] font-bold flex items-center justify-center animate-pulse">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
           {/* Host End or Participant Leave */}
           {isHost ? (
             <button
@@ -403,8 +426,8 @@ export const WatchRoomPage: React.FC = () => {
       </header>
 
       {/* Main Workspace: Full Video Area with YouTube-Style Chat Overlay */}
-      <main className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
-        <div className="w-full h-full flex flex-col justify-center">
+      <main className="flex-1 relative bg-black flex items-center justify-center overflow-hidden w-full h-full">
+        <div className="w-full h-full flex flex-col justify-center relative">
           <WatchPlayer
             media={room.media}
             isHost={isHost}
@@ -416,6 +439,8 @@ export const WatchRoomPage: React.FC = () => {
             onToggleChat={() => setIsChatOpen((prev) => !prev)}
             isChatOpen={isChatOpen}
             unreadCount={unreadCount}
+            messages={messages}
+            currentUser={user}
           />
         </div>
 

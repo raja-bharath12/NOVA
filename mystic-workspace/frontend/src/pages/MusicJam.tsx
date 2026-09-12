@@ -926,33 +926,31 @@ export default function MusicJam() {
 
 
       {/* Top Room Navigation Bar */}
-      <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl glass-panel border border-violet-500/20 bg-void-950/80 backdrop-blur-xl flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-violet-600 to-fuchsia-500 p-[1.5px] flex-shrink-0">
+      <div className="flex items-center justify-between gap-2 sm:gap-4 p-2.5 sm:p-4 rounded-2xl glass-panel border border-violet-500/20 bg-void-950/80 backdrop-blur-xl flex-shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+          <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-tr from-violet-600 to-fuchsia-500 p-[1.5px] flex-shrink-0">
             <div className="h-full w-full bg-void-950 rounded-[10px] flex items-center justify-center text-fuchsia-300">
-              <Radio size={18} className={isPlaying ? 'animate-pulse text-fuchsia-400' : ''} />
+              <Radio size={16} className={isPlaying ? 'animate-pulse text-fuchsia-400 sm:w-4 sm:h-4' : 'sm:w-4 sm:h-4'} />
             </div>
           </div>
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base font-bold text-silver truncate font-display">
-                {currentRoom?.title}
-              </h2>
-              <span className="px-2 py-0.5 rounded-full bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30 text-[10px] font-mono font-bold">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xs sm:text-base font-bold text-silver truncate font-display leading-tight">
+              {currentRoom?.title}
+            </h2>
+            <p className="text-[10px] sm:text-[11px] text-muted truncate flex items-center gap-1.5 mt-0.5">
+              <span>Host: <b className="text-silver font-medium">{currentRoom?.hostName?.split(' ')[0]}</b></span>
+              <span>•</span>
+              <span className="font-mono text-fuchsia-300 font-semibold px-1.5 py-0.2 rounded-md bg-fuchsia-500/15 border border-fuchsia-400/30 text-[9px] sm:text-[10px]">
                 {currentRoom?.roomCode}
               </span>
-            </div>
-            <p className="text-[11px] text-muted truncate">
-              Host: <b className="text-silver">{currentRoom?.hostName}</b> •{' '}
-              {currentRoom?.isCollaborative ? 'Party Mode (Open DJ)' : 'Host-Controlled'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {/* Members Pill */}
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-silver">
+          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-silver">
             <Users size={13} className="text-cyan-400" />
             <span>{currentRoom?.members.length || 1} Listening</span>
           </div>
@@ -970,7 +968,7 @@ export default function MusicJam() {
           {/* Toggle Queue */}
           <button
             onClick={() => setShowQueue(!showQueue)}
-            className={`p-2 sm:px-3 sm:py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+            className={`p-2 sm:px-3 sm:py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all relative ${
               showQueue
                 ? 'bg-violet-600 text-white border-violet-500 shadow-glow'
                 : 'bg-white/[0.04] text-muted hover:text-silver border-white/[0.08]'
@@ -979,6 +977,11 @@ export default function MusicJam() {
           >
             <ListMusic size={14} />
             <span className="hidden sm:inline">Queue ({currentRoom?.queue.length || 0})</span>
+            {currentRoom && currentRoom.queue.length > 0 && (
+              <span className="sm:hidden absolute -top-1 -right-1 h-3.5 min-w-[14px] px-1 rounded-full bg-violet-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {currentRoom.queue.length}
+              </span>
+            )}
           </button>
 
           {/* Toggle Chat */}

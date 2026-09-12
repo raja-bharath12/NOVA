@@ -17,11 +17,13 @@ export default function RadialActionMenu() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Hide the floating + button on Chat and Meetings pages to avoid covering send/call controls
+  // Hide the floating + button on Chat, Meetings, Music Jam, and Watch pages to avoid covering controls
   const isHidden =
     location.pathname.startsWith('/chat') ||
     location.pathname.startsWith('/meetings') ||
-    location.pathname.startsWith('/meeting')
+    location.pathname.startsWith('/meeting') ||
+    location.pathname.startsWith('/music') ||
+    location.pathname.startsWith('/watch')
 
   if (isHidden) {
     return null
