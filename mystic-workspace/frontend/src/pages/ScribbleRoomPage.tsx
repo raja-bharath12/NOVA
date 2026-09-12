@@ -354,53 +354,109 @@ export default function ScribbleRoomPage() {
           </div>
         </div>
       ) : (
-        /* ACTIVE GAME ARENA (3 Columns) */
-        <div className="w-full flex-1 grid lg:grid-cols-12 gap-3 min-h-[550px]">
-          {/* Left Column: Live Leaderboard (3 cols) */}
-          <div className="lg:col-span-3 h-[250px] lg:h-auto">
-            <ScribbleLeaderboard
-              players={roomState.players}
-              currentDrawerId={roomState.currentDrawerId}
-            />
-          </div>
+        /* ACTIVE GAME ARENA */
+        <div className="w-full flex-1 flex flex-col space-y-3">
+          {/* Inline Word Selection Banner (For Drawer during WORD_SELECTION) */}
+          {roomState.phase === 'WORD_SELECTION' && isDrawer && (
+            <div className="w-full bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-purple-900/60 border border-purple-500/30 rounded-2xl p-3 sm:p-4 backdrop-blur-xl shadow-glow animate-pulse">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-300 animate-spin" />
+                  <span className="text-xs sm:text-sm font-bold text-white">
+                    Pick a word to start drawing (00:{roomState.timeRemaining.toString().padStart(2, '0')}):
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  {(drawerWordChoices.length > 0 ? drawerWordChoices : [
+                    { word: 'SUN', difficulty: 'EASY' as const, hint: 'Sky' },
+                    { word: 'CASTLE', difficulty: 'MEDIUM' as const, hint: 'Building' },
+                    { word: 'ASTRONAUT', difficulty: 'HARD' as const, hint: 'Space' }
+                  ]).map((w) => (
+                    <button
+                      key={w.word}
+                      onClick={() => handleSelectWord(w.word)}
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 border border-purple-400/40"
+                    >
+                      <span>{w.word}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 uppercase font-mono text-purple-200">
+                        {w.difficulty}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-          {/* Center Column: Interactive Canvas & Toolbar (6 cols) */}
-          <div className="lg:col-span-6 flex flex-col gap-2 min-h-[350px] lg:min-h-[500px]">
-            <div className="flex-1 relative w-full h-full min-h-[300px]">
-              <ScribbleCanvas
-                isDrawer={isDrawer && roomState.phase === 'DRAWING'}
-                currentTool={currentTool}
-                currentColor={currentColor}
-                currentWidth={currentWidth}
-                onEmitDrawAction={handleEmitDrawAction}
-                incomingAction={incomingAction}
-                initialActions={initialActions}
+          {/* Desktop 3-Column / Mobile Responsive Grid */}
+          <div className="w-full grid lg:grid-cols-12 gap-3 min-h-[550px]">
+            {/* 1. Left Column on Desktop: Leaderboard (Hidden on Mobile unless tab selected) */}
+            <div className="hidden lg:block lg:col-span-3 h-auto">
+              <ScribbleLeaderboard
+                players={roomState.players}
+                currentDrawerId={roomState.currentDrawerId}
               />
             </div>
 
-            {/* Drawer Tools (Visible only for the active drawer) */}
-            {isDrawer && roomState.phase === 'DRAWING' && (
-              <ScribbleToolbar
-                currentTool={currentTool}
-                setTool={setCurrentTool}
-                currentColor={currentColor}
-                setColor={setCurrentColor}
-                currentWidth={currentWidth}
-                setWidth={setCurrentWidth}
-                onClear={handleClear}
-                onUndo={handleUndo}
+            {/* 2. Center Column: Interactive Canvas & Toolbar (Always Prominent at Top on Mobile) */}
+            <div className="lg:col-span-6 flex flex-col gap-2 min-h-[360px] sm:min-h-[440px] lg:min-h-[520px]">
+              <div className="flex-1 relative w-full h-full min-h-[300px] sm:min-h-[400px]">
+                <ScribbleCanvas
+                  isDrawer={isDrawer && roomState.phase === 'DRAWING'}
+                  currentTool={currentTool}
+                  currentColor={currentColor}
+                  currentWidth={currentWidth}
+                  onEmitDrawAction={handleEmitDrawAction}
+                  incomingAction={incomingAction}
+                  initialActions={initialActions}
+                />
+              </div>
+
+              {/* Drawer Tools (Paintbrush, Pencil, Eraser, Flood Fill Bucket, Colors, Sizes) */}
+              {(isDrawer || roomState.players.length === 1) && (
+                <div className="w-full">
+                  <ScribbleToolbar
+                    currentTool={currentTool}
+                    setTool={setCurrentTool}
+                    currentColor={currentColor}
+                    setColor={setCurrentColor}
+                    currentWidth={currentWidth}
+                    setWidth={setCurrentWidth}
+                    onClear={handleClear}
+                    onUndo={handleUndo}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 3. Right Column on Desktop: Live Chat & Guess Feed */}
+            <div className="hidden lg:block lg:col-span-3 h-auto">
+              <ScribbleChat
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                hasGuessed={hasGuessed}
+                isDrawer={isDrawer && roomState.phase === 'DRAWING'}
               />
-            )}
+            </div>
           </div>
 
-          {/* Right Column: Live Chatbox & Guess Feed (3 cols) */}
-          <div className="lg:col-span-3 h-[300px] lg:h-auto">
-            <ScribbleChat
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              hasGuessed={hasGuessed}
-              isDrawer={isDrawer && roomState.phase === 'DRAWING'}
-            />
+          {/* Mobile Tab Switcher for Chat & Leaderboard */}
+          <div className="block lg:hidden w-full space-y-3">
+            <div className="h-[340px]">
+              <ScribbleChat
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                hasGuessed={hasGuessed}
+                isDrawer={isDrawer && roomState.phase === 'DRAWING'}
+              />
+            </div>
+
+            <div className="h-[220px]">
+              <ScribbleLeaderboard
+                players={roomState.players}
+                currentDrawerId={roomState.currentDrawerId}
+              />
+            </div>
           </div>
         </div>
       )}

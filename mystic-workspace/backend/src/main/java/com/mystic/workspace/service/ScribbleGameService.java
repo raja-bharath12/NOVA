@@ -281,6 +281,10 @@ public class ScribbleGameService {
     public synchronized void startGame(String roomCode, Long hostId) {
         RoomInstance room = getRoom(roomCode);
         if (room == null || room.getPlayers().isEmpty()) return;
+        if (room.phase != GamePhase.LOBBY && room.phase != GamePhase.GAME_OVER) {
+            log.info("Game match already started for room: {}", roomCode);
+            return;
+        }
 
         room.phase = GamePhase.WORD_SELECTION;
         room.currentRound = 1;
@@ -308,10 +312,16 @@ public class ScribbleGameService {
         room.timeRemaining = 15; // 15 seconds to choose word
         room.totalTurnSeconds = 15;
 
-        // Pick drawer based on turn index
-        int activePlayerCount = room.getPlayers().size();
-        int drawerIndex = room.currentTurnIndex % activePlayerCount;
-        PlayerState drawer = room.getPlayers().get(drawerIndex);
+        // Pick active connected drawer
+        List<PlayerState> activePlayers = room.getPlayers().stream()
+                .filter(PlayerState::isConnected)
+                .toList();
+        if (activePlayers.isEmpty()) {
+            activePlayers = room.getPlayers();
+        }
+
+        int drawerIndex = room.currentTurnIndex % activePlayers.size();
+        PlayerState drawer = activePlayers.get(drawerIndex);
 
         room.currentDrawer = drawer;
         room.getPlayers().forEach(p -> {
@@ -341,7 +351,7 @@ public class ScribbleGameService {
                 room.timeRemaining--;
                 if (room.timeRemaining <= 0) {
                     // Auto-select random word if drawer didn't choose
-                    if (room.currentWord == null) {
+                    if (room.currentWord == null && !room.currentWordChoices.isEmpty()) {
                         WordOption autoWord = room.currentWordChoices.get(random.nextInt(room.currentWordChoices.size()));
                         selectWord(room.getRoomCode(), drawer.getUserId(), autoWord.getWord());
                     }
@@ -358,7 +368,9 @@ public class ScribbleGameService {
     public synchronized void selectWord(String roomCode, Long drawerId, String chosenWord) {
         RoomInstance room = getRoom(roomCode);
         if (room == null || room.getPhase() != GamePhase.WORD_SELECTION) return;
-        if (room.getCurrentDrawer() == null || !room.getCurrentDrawer().getUserId().equals(drawerId)) return;
+        if (drawerId != null && room.getCurrentDrawer() != null && !room.getCurrentDrawer().getUserId().equals(drawerId) && room.getPlayers().size() > 1) {
+            return;
+        }
 
         Optional<WordOption> match = room.getCurrentWordChoices().stream()
                 .filter(w -> w.getWord().equalsIgnoreCase(chosenWord))
