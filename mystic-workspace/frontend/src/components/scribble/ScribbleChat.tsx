@@ -71,15 +71,26 @@ export default function ScribbleChat({
               return (
                 <div
                   key={msg.id}
-                  className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 shadow-sm animate-in fade-in"
+                  className="py-1.5 px-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 shadow-sm animate-in fade-in"
                 >
-                  <span className="text-sm">🎉</span>
+                  <span className="text-emerald-400 font-bold">✓</span>
                   <span>{msg.content}</span>
                 </div>
               )
             }
 
-            if (msg.type === 'SYSTEM' || msg.type === 'DRAWER_PICKED' || msg.type === 'PLAYER_JOIN' || msg.type === 'PLAYER_LEAVE') {
+            if (msg.type === 'DRAWER_PICKED') {
+              return (
+                <div
+                  key={msg.id}
+                  className="py-1 px-2.5 rounded-xl bg-purple-500/15 text-[11px] text-purple-300 font-bold text-center border border-purple-500/25"
+                >
+                  🎨 {msg.content}
+                </div>
+              )
+            }
+
+            if (msg.type === 'SYSTEM' || msg.type === 'PLAYER_JOIN' || msg.type === 'PLAYER_LEAVE') {
               return (
                 <div
                   key={msg.id}
@@ -97,7 +108,7 @@ export default function ScribbleChat({
                 key={msg.id}
                 className="text-xs p-1 rounded-lg hover:bg-white/[0.02] transition-colors leading-relaxed"
               >
-                <span className={`font-bold mr-1.5 ${self ? 'text-purple-400' : 'text-silver'}`}>
+                <span className={`font-bold mr-1.5 ${self ? 'text-purple-400' : 'text-slate-300'}`}>
                   {self ? 'You' : msg.senderName}:
                 </span>
                 <span className="text-white/90">
@@ -121,7 +132,7 @@ export default function ScribbleChat({
               ? 'You are drawing! Chat disabled'
               : hasGuessed
               ? '✓ You guessed correctly!'
-              : 'Type your answer...'
+              : 'Type your guess here...'
           }
           className="flex-1 bg-white/5 border border-white/10 focus:border-purple-500 rounded-xl px-3 py-2 text-xs text-white placeholder-white/40 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         />

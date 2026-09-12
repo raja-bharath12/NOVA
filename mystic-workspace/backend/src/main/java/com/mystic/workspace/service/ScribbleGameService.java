@@ -227,7 +227,7 @@ public class ScribbleGameService {
         }
 
         broadcastRoomState(room);
-        broadcastSystemChat(room, name + " joined the game arena!", ChatMessage.MsgType.PLAYER_JOIN);
+        broadcastSystemChat(room, name + " joined the room!", ChatMessage.MsgType.PLAYER_JOIN);
         return room.toDto(userId);
     }
 
@@ -243,7 +243,7 @@ public class ScribbleGameService {
             PlayerState player = playerOpt.get();
             player.setConnected(false);
             room.getPlayers().remove(player);
-            broadcastSystemChat(room, player.getName() + " left the room.", ChatMessage.MsgType.PLAYER_LEAVE);
+            broadcastSystemChat(room, player.getName() + " left the room!", ChatMessage.MsgType.PLAYER_LEAVE);
 
             // If host left, elect new host
             if (player.isHost() && !room.getPlayers().isEmpty()) {
@@ -400,7 +400,7 @@ public class ScribbleGameService {
                 room.toDto(drawer.getUserId())
         );
 
-        broadcastSystemChat(room, "🎨 " + drawer.getName() + " is choosing a word...", ChatMessage.MsgType.DRAWER_PICKED);
+        broadcastSystemChat(room, drawer.getName() + " is choosing a word...", ChatMessage.MsgType.DRAWER_PICKED);
 
         // 10-second Word selection countdown
         room.setTimerTask(scheduler.scheduleAtFixedRate(() -> {
@@ -456,7 +456,7 @@ public class ScribbleGameService {
             );
         }
 
-        broadcastSystemChat(room, "🎨 " + room.getCurrentDrawer().getName() + " is now drawing!", ChatMessage.MsgType.SYSTEM);
+        broadcastSystemChat(room, room.getCurrentDrawer().getName() + " is drawing now!", ChatMessage.MsgType.DRAWER_PICKED);
 
         // Drawing countdown loop (30s)
         room.setTimerTask(scheduler.scheduleAtFixedRate(() -> {
@@ -580,7 +580,7 @@ public class ScribbleGameService {
                     .senderId(senderId)
                     .senderName(senderName)
                     .senderTag(senderTag)
-                    .content("🎉 " + senderName + " guessed the word correctly!")
+                    .content(senderName + " guessed the word!")
                     .timestamp(System.currentTimeMillis())
                     .build());
 

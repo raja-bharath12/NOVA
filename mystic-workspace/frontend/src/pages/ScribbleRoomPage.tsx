@@ -228,47 +228,55 @@ export default function ScribbleRoomPage() {
 
   return (
     <div className="w-full flex flex-col space-y-3 pb-8 max-w-[1600px] mx-auto min-h-[calc(100dvh-5rem)]">
-      {/* 1. TOP GAME STATUS BAR */}
-      <div className="w-full bg-[#13141f]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-2.5 sm:p-4 shadow-xl flex flex-wrap items-center justify-between gap-2.5">
-        {/* Round & Drawer Info */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold font-mono">
-            {roomState.phase === 'LOBBY' ? 'LOBBY' : `Turn ${roomState.currentTurnIndex + 1}`}
-          </div>
+      {/* 1. TOP GAME STATUS BAR (Styled like Skribbl.io) */}
+      <div className="w-full bg-[#13141f]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-2.5 sm:p-3.5 shadow-xl flex flex-wrap items-center justify-between gap-3">
+        {/* Round Clock Circle & Round Info */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {roomState.phase !== 'LOBBY' ? (
+            <div
+              className={`relative flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 text-white font-black font-mono text-sm sm:text-base shadow-md transition-all ${
+                roomState.timeRemaining <= 5
+                  ? 'bg-rose-500/30 border-rose-400 animate-pulse text-rose-200'
+                  : roomState.timeRemaining <= 10
+                  ? 'bg-amber-500/30 border-amber-400 text-amber-200'
+                  : 'bg-purple-600/30 border-purple-400 text-purple-200'
+              }`}
+            >
+              <span>{roomState.timeRemaining}</span>
+            </div>
+          ) : (
+            <div className="px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold font-mono">
+              LOBBY
+            </div>
+          )}
 
           <div>
-            <span className="text-[10px] sm:text-xs text-white/50 block leading-tight">Drawer:</span>
-            <span className="text-xs sm:text-sm font-bold text-silver">
-              {roomState.currentDrawerName ? (
-                isDrawer ? (
-                  <span className="text-purple-300 font-extrabold">🎨 You</span>
-                ) : (
-                  <span className="text-white font-bold">🎨 {roomState.currentDrawerName}</span>
-                )
-              ) : (
-                'Waiting in Lobby'
-              )}
+            <span className="text-xs sm:text-sm font-black text-white block leading-tight">
+              Round {roomState.currentRound} of {roomState.totalRounds}
+            </span>
+            <span className="text-[10px] text-white/50 block font-mono">
+              {roomState.phase === 'LOBBY' ? 'Waiting for players' : `Turn ${roomState.currentTurnIndex + 1}`}
             </span>
           </div>
         </div>
 
-        {/* Word Clue Mask / Reveal Center */}
+        {/* Word Clue Mask / Reveal Center: GUESS THIS vs DRAW THIS */}
         <div className="flex-1 flex flex-col items-center justify-center px-2">
           {roomState.phase === 'LOBBY' ? (
             <span className="text-xs sm:text-sm font-bold text-purple-300 uppercase tracking-widest text-center">
-              Room: {roomState.roomCode}
+              Room Code: {roomState.roomCode}
             </span>
           ) : isDrawer ? (
             <div className="flex flex-col items-center justify-center text-center">
-              <span className="text-xs font-bold text-purple-300 flex items-center gap-1">
-                🎨 You are drawing:
+              <span className="text-[10px] sm:text-xs font-black text-purple-300 uppercase tracking-wider flex items-center gap-1">
+                🎨 DRAW THIS:
               </span>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-base sm:text-xl font-mono font-black text-white tracking-widest uppercase bg-purple-500/10 px-3 py-0.5 rounded-xl border border-purple-500/20">
+                <span className="text-base sm:text-2xl font-mono font-black text-white tracking-widest uppercase bg-purple-500/10 px-3 py-0.5 rounded-xl border border-purple-500/20">
                   {effectiveDrawerWord || roomState.maskedWord || 'Choosing...'}
                 </span>
                 {drawerWordLength > 0 && (
-                  <span className="text-[11px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono">
+                  <span className="text-xs font-black text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-mono">
                     {drawerWordLength} letters
                   </span>
                 )}
@@ -276,15 +284,15 @@ export default function ScribbleRoomPage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center text-center">
-              <span className="text-xs text-white/70 font-semibold flex items-center gap-1">
-                🎨 <b className="text-purple-300">{roomState.currentDrawerName || 'Drawer'}</b> is drawing
+              <span className="text-[10px] sm:text-xs text-white/60 font-black uppercase tracking-wider flex items-center gap-1">
+                🎨 GUESS THIS:
               </span>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-base sm:text-2xl font-mono font-black text-white tracking-[0.25em]">
                   {roomState.maskedWord}
                 </span>
                 {guesserWordLength > 0 && (
-                  <span className="text-[11px] font-bold text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2.5 py-0.5 rounded-full font-mono">
+                  <span className="text-xs font-black text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2.5 py-0.5 rounded-full font-mono">
                     {guesserWordLength} letters
                   </span>
                 )}
@@ -293,28 +301,13 @@ export default function ScribbleRoomPage() {
           )}
         </div>
 
-        {/* Turn Timer, Live Score & Actions */}
+        {/* Live Score Badge & Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           {/* User Score Badge */}
           <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold font-mono shadow-sm">
             <Trophy size={14} className="text-amber-400" />
             <span>{currentUserPlayer?.score || 0} PTS</span>
           </div>
-
-          {roomState.phase !== 'LOBBY' && (
-            <div
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-xs font-mono font-bold ${
-                roomState.timeRemaining <= 5
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
-                  : roomState.timeRemaining <= 10
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-purple-500/20 text-purple-200 border-purple-500/30'
-              }`}
-            >
-              <Clock size={14} className={roomState.timeRemaining <= 5 ? 'text-rose-400' : 'text-purple-400'} />
-              <span>{roomState.timeRemaining}s</span>
-            </div>
-          )}
 
           <button
             onClick={handleCopyInvite}
@@ -433,7 +426,7 @@ export default function ScribbleRoomPage() {
           </div>
         </div>
       ) : (
-        /* ACTIVE GAME ARENA - UNIFIED SINGLE CANVAS ARCHITECTURE */
+        /* ACTIVE GAME ARENA - THREE-COLUMN LAYOUT (LEADERBOARD | CANVAS | CHAT) */
         <div className="w-full flex-1 flex flex-col space-y-3">
           {/* Inline Word Selection Banner (For Drawer during 10s WORD_SELECTION) */}
           {roomState.phase === 'WORD_SELECTION' && isDrawer && (
@@ -474,18 +467,20 @@ export default function ScribbleRoomPage() {
             </div>
           )}
 
-          {/* Responsive Layout Grid (Desktop 3-Column / Mobile Single Clean Stack) */}
-          <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[500px]">
-            {/* 1. Desktop Left Column: Leaderboard / Player List */}
-            <div className="hidden lg:block lg:col-span-3 h-auto">
+          {/* Responsive 3-Column Layout: Scoreboard on Left | Canvas in Middle | Chat on Right */}
+          <div className="w-full grid grid-cols-1 md:grid-cols-12 gap-3 min-h-[520px]">
+            {/* 1. Left Column: Scoreboard with Avatars, Points, and Guessed Status (ALWAYS VISIBLE on md+) */}
+            <div className="col-span-12 md:col-span-4 lg:col-span-3 h-[220px] md:h-auto">
               <ScribbleLeaderboard
                 players={roomState.players}
                 currentDrawerId={roomState.currentDrawerId}
+                currentUserId={effectiveUserId}
+                currentUserName={user?.name || localStorage.getItem('mystic_scribble_name') || ''}
               />
             </div>
 
-            {/* 2. Center Column: THE ONLY Interactive Canvas (Zero duplication, zero conflicts) */}
-            <div className="lg:col-span-6 flex flex-col gap-2 min-h-[320px] sm:min-h-[420px] lg:min-h-[520px]">
+            {/* 2. Center Column: Whiteboard Canvas + Drawer Toolbar */}
+            <div className="col-span-12 md:col-span-8 lg:col-span-6 flex flex-col gap-2 min-h-[340px] sm:min-h-[440px] lg:min-h-[540px]">
               <div className="flex-1 relative w-full h-[280px] sm:h-[380px] lg:h-full">
                 <ScribbleCanvas
                   ref={scribbleCanvasRef}
@@ -513,25 +508,10 @@ export default function ScribbleRoomPage() {
                   />
                 </div>
               )}
-
-              {/* Mobile Quick Scores Bar (Visible on Mobile under canvas) */}
-              <div className="block lg:hidden flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs">
-                <span className="text-white/60 font-semibold flex items-center gap-1">
-                  <Trophy size={12} className="text-amber-400" /> Leaderboard:
-                </span>
-                <div className="flex items-center gap-2.5 overflow-x-auto custom-scrollbar">
-                  {roomState.players.map((p, idx) => (
-                    <span key={p.userId} className="font-mono text-[11px] text-white/80 whitespace-nowrap">
-                      #{idx + 1} {p.name}: <b className="text-purple-300">{p.score}p</b>
-                      {p.hasGuessed ? <span className="text-emerald-400 ml-1">✓</span> : ''}
-                    </span>
-                  ))}
-                </div>
-              </div>
             </div>
 
-            {/* 3. Right Column on Desktop / Mobile Bottom Section: Live Chat & Guess Feed */}
-            <div className="col-span-1 lg:col-span-3 h-[300px] sm:h-[360px] lg:h-auto flex flex-col">
+            {/* 3. Right Column: Live Chat & Guess Feed */}
+            <div className="col-span-12 lg:col-span-3 h-[320px] sm:h-[380px] lg:h-auto flex flex-col">
               <ScribbleChat
                 messages={messages}
                 onSendMessage={handleSendMessage}
