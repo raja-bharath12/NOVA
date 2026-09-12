@@ -68,6 +68,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/watch/media/*/stream", "/watch/media/*/stream", "/api/api/watch/media/*/stream", "/api/watch/media/*/hls/**").permitAll()
                 .requestMatchers("/api/music/tracks/*/stream", "/music/tracks/*/stream", "/api/api/music/tracks/*/stream").permitAll()
                 .requestMatchers("/api/watch/rooms/**", "/watch/rooms/**", "/api/api/watch/rooms/**").permitAll()
+                .requestMatchers("/api/scribble/**", "/scribble/**", "/api/api/scribble/**").permitAll()
                 .requestMatchers("/api/admin/**", "/admin/**", "/api/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )

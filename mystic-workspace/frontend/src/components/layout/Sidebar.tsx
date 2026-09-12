@@ -18,6 +18,7 @@ import {
   Film,
   Shield,
   Headphones,
+  Gamepad2,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { useCall } from '../../context/CallContext'
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/meetings', label: 'Meetings', icon: Video },
   { to: '/watch', label: 'Watch Together', icon: Film },
   { to: '/music', label: 'Music Jam', icon: Headphones },
+  { to: '/scribble', label: 'Scribble Arena', icon: Gamepad2 },
   { to: '/files', label: 'Files', icon: FolderOpen },
   { to: '/whiteboard', label: 'Whiteboard', icon: PenTool },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
@@ -51,6 +53,7 @@ const MOBILE_PRIMARY_TABS: NavItem[] = [
 ]
 
 const MORE_SHEET_ITEMS = [
+  { to: '/scribble', label: 'Scribble Arena', icon: Gamepad2, desc: 'Multiplayer drawing & guessing' },
   { to: '/music', label: 'Music Jam', icon: Headphones, desc: 'Sync music & group beats' },
   { to: '/watch', label: 'Watch Together', icon: Film, desc: 'Sync streaming & live chat' },
   { to: '/calendar', label: 'Calendar', icon: CalendarDays, desc: 'Events & schedule' },

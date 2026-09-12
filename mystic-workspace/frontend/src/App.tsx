@@ -21,6 +21,8 @@ import Settings from './pages/Settings'
 import WatchTogetherHome from './pages/WatchTogetherHome'
 import WatchRoomPage from './pages/WatchRoomPage'
 import MusicJam from './pages/MusicJam'
+import ScribbleHome from './pages/ScribbleHome'
+import ScribbleRoomPage from './pages/ScribbleRoomPage'
 import AdminDashboard from './pages/AdminDashboard'
 
 export default function App() {
@@ -148,6 +150,26 @@ export default function App() {
                 <ProtectedRoute>
                   <AppLayout>
                     <MusicJam />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/scribble"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ScribbleHome />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/scribble/room/:roomCode"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ScribbleRoomPage />
                   </AppLayout>
                 </ProtectedRoute>
               }

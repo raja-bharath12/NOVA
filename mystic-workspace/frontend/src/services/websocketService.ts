@@ -13,6 +13,11 @@ import type {
   MusicSyncAction,
   MusicChatMessage,
 } from '../types'
+import type {
+  RoomState as ScribbleRoomState,
+  DrawAction as ScribbleDrawAction,
+  ScribbleChatMessage,
+} from '../types/scribble'
 
 interface ActiveSub {
   id: string
@@ -523,6 +528,154 @@ class WebSocketService {
       })
     } catch (err) {
       console.warn('Failed to publish music chat', err)
+    }
+  }
+
+  // ===== Scribble Arena Subscriptions & Publishers =====
+
+  subscribeToScribbleRoom(
+    roomCode: string,
+    userId: number | undefined,
+    onRoomState: (state: ScribbleRoomState) => void,
+    onCanvasAction: (action: ScribbleDrawAction) => void,
+    onChat: (msg: ScribbleChatMessage) => void,
+    onPrivateHint?: (hint: any) => void,
+    onTimer?: (data: { timeRemaining: number; totalTurnSeconds: number; phase: string }) => void
+  ): () => void {
+    const clean = roomCode.trim().toUpperCase()
+
+    // 1. Room state topic
+    const topicState = `/topic/scribble.${clean}`
+    const unsubState = this.registerSubscription(topicState, (imsg: IMessage) => {
+      try {
+        const data: ScribbleRoomState = JSON.parse(imsg.body)
+        onRoomState(data)
+      } catch (err) {
+        console.error('Failed to parse scribble room state', err)
+      }
+    })
+
+    // 2. Canvas draw operations topic
+    const topicCanvas = `/topic/scribble.${clean}.canvas`
+    const unsubCanvas = this.registerSubscription(topicCanvas, (imsg: IMessage) => {
+      try {
+        const data: ScribbleDrawAction = JSON.parse(imsg.body)
+        onCanvasAction(data)
+      } catch (err) {
+        console.error('Failed to parse scribble draw action', err)
+      }
+    })
+
+    // 3. Live chat and guess feed
+    const topicChat = `/topic/scribble.${clean}.chat`
+    const unsubChat = this.registerSubscription(topicChat, (imsg: IMessage) => {
+      try {
+        const data: ScribbleChatMessage = JSON.parse(imsg.body)
+        onChat(data)
+      } catch (err) {
+        console.error('Failed to parse scribble chat', err)
+      }
+    })
+
+    // 4. Timer fast tick topic
+    let unsubTimer: (() => void) | null = null
+    if (onTimer) {
+      const topicTimer = `/topic/scribble.${clean}.timer`
+      unsubTimer = this.registerSubscription(topicTimer, (imsg: IMessage) => {
+        try {
+          const data = JSON.parse(imsg.body)
+          onTimer(data)
+        } catch (err) {
+          console.error('Failed to parse scribble timer tick', err)
+        }
+      })
+    }
+
+    // 5. Private user channel for drawer word selection & close-guess hints
+    let unsubPrivate: (() => void) | null = null
+    if (userId && onPrivateHint) {
+      const topicPrivate = `/topic/scribble.${clean}.private.${userId}`
+      unsubPrivate = this.registerSubscription(topicPrivate, (imsg: IMessage) => {
+        try {
+          const data = JSON.parse(imsg.body)
+          onPrivateHint(data)
+        } catch (err) {
+          console.error('Failed to parse scribble private payload', err)
+        }
+      })
+    }
+
+    return () => {
+      unsubState()
+      unsubCanvas()
+      unsubChat()
+      unsubTimer?.()
+      unsubPrivate?.()
+    }
+  }
+
+  sendScribbleDraw(roomCode: string, action: ScribbleDrawAction) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toUpperCase()
+    try {
+      this.client.publish({
+        destination: `/app/scribble/${clean}/draw`,
+        body: JSON.stringify(action),
+      })
+    } catch (err) {
+      console.warn('Failed to publish scribble draw action', err)
+    }
+  }
+
+  sendScribbleGuess(roomCode: string, text: string) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toUpperCase()
+    try {
+      this.client.publish({
+        destination: `/app/scribble/${clean}/guess`,
+        body: JSON.stringify({ text }),
+      })
+    } catch (err) {
+      console.warn('Failed to publish scribble guess', err)
+    }
+  }
+
+  sendScribbleSelectWord(roomCode: string, word: string) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toUpperCase()
+    try {
+      this.client.publish({
+        destination: `/app/scribble/${clean}/select-word`,
+        body: JSON.stringify({ word }),
+      })
+    } catch (err) {
+      console.warn('Failed to publish scribble select word', err)
+    }
+  }
+
+  sendScribbleStartGame(roomCode: string) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toUpperCase()
+    try {
+      this.client.publish({
+        destination: `/app/scribble/${clean}/start`,
+        body: JSON.stringify({}),
+      })
+    } catch (err) {
+      console.warn('Failed to publish scribble start game', err)
+    }
+  }
+
+  sendScribbleLeave(roomCode: string) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toUpperCase()
+    try {
+      this.client.publish({
+        destination: `/app/scribble/${clean}/leave`,
+        body: JSON.stringify({}),
+      })
+    } catch (err) {
+      console.warn('Failed to publish scribble leave', err)
     }
   }
 }
