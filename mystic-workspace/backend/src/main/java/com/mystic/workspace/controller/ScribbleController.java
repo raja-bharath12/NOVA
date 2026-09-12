@@ -69,7 +69,14 @@ public class ScribbleController {
     }
 
     private User resolveUser(Principal principal) {
-        if (principal == null) return null;
-        return userRepository.findByEmail(principal.getName()).orElse(null);
+        if (principal instanceof org.springframework.security.authentication.UsernamePasswordAuthenticationToken auth) {
+            if (auth.getPrincipal() instanceof com.mystic.workspace.security.UserPrincipal userPrincipal) {
+                return userRepository.findById(userPrincipal.getId()).orElse(null);
+            }
+        }
+        if (principal != null) {
+            return userRepository.findByEmail(principal.getName()).orElse(null);
+        }
+        return null;
     }
 }
