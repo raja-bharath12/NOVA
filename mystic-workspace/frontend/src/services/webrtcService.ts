@@ -11,6 +11,9 @@ const RTC_CONFIG: RTCConfiguration = {
     { urls: stunServer },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
     {
       urls: turnServer,
       username: turnUsername,
@@ -37,6 +40,8 @@ export class WebRTCService {
 
   // 1:1 Call State
   private callPeerConnection: RTCPeerConnection | null = null
+  private isRemoteDescriptionSet = false
+  private candidateQueue: RTCIceCandidateInit[] = []
   private onRemoteStreamCallback: ((stream: MediaStream) => void) | null = null
   private onCallEndedCallback: (() => void) | null = null
 
@@ -49,7 +54,16 @@ export class WebRTCService {
 
   async getLocalMedia(video = true, audio = true): Promise<MediaStream> {
     if (this.localStream) {
-      return this.localStream
+      const hasVideo = this.localStream.getVideoTracks().some((t) => t.readyState === 'live')
+      const hasAudio = this.localStream.getAudioTracks().some((t) => t.readyState === 'live')
+
+      // If requested tracks match current stream, reuse it
+      if ((!video || hasVideo) && (!audio || hasAudio)) {
+        return this.localStream
+      }
+
+      // Track mismatch: clean up existing stream and reacquire
+      this.stopAllMedia()
     }
 
     try {
@@ -145,6 +159,8 @@ export class WebRTCService {
   ) {
     this.onRemoteStreamCallback = onRemoteStream
     this.onCallEndedCallback = onCallEnded
+    this.isRemoteDescriptionSet = false
+    this.candidateQueue = []
 
     await this.getLocalMedia(isVideo, true)
     this.createCallPeerConnection(targetUserId, senderId, senderName, isVideo)
@@ -177,6 +193,9 @@ export class WebRTCService {
 
     if (signal.sdp) {
       await this.callPeerConnection!.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+      this.isRemoteDescriptionSet = true
+      await this.flushCandidateQueue()
+
       const answer = await this.callPeerConnection!.createAnswer()
       await this.callPeerConnection!.setLocalDescription(answer)
 
@@ -192,18 +211,41 @@ export class WebRTCService {
   }
 
   async handleCallSignal(signal: CallSignal) {
-    if (!this.callPeerConnection && signal.type !== 'CALL_REQUEST') return
-
     if (signal.type === 'ANSWER' && signal.sdp) {
-      await this.callPeerConnection?.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+      if (this.callPeerConnection) {
+        try {
+          await this.callPeerConnection.setRemoteDescription(new RTCSessionDescription(signal.sdp))
+          this.isRemoteDescriptionSet = true
+          await this.flushCandidateQueue()
+        } catch (err) {
+          console.warn('Error setting remote description from ANSWER:', err)
+        }
+      }
     } else if (signal.type === 'ICE_CANDIDATE' && signal.candidate) {
-      try {
-        await this.callPeerConnection?.addIceCandidate(new RTCIceCandidate(signal.candidate))
-      } catch (err) {
-        console.warn('Error adding ICE candidate', err)
+      if (!this.callPeerConnection || !this.isRemoteDescriptionSet) {
+        this.candidateQueue.push(signal.candidate)
+      } else {
+        try {
+          await this.callPeerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate))
+        } catch (err) {
+          console.warn('Error adding ICE candidate directly:', err)
+        }
       }
     } else if (signal.type === 'CALL_END' || signal.type === 'CALL_REJECT' || signal.type === 'CALL_BUSY') {
       this.endCall()
+    }
+  }
+
+  private async flushCandidateQueue() {
+    while (this.candidateQueue.length > 0) {
+      const candidate = this.candidateQueue.shift()
+      if (candidate && this.callPeerConnection) {
+        try {
+          await this.callPeerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+        } catch (e) {
+          console.warn('Failed flushing queued ICE candidate:', e)
+        }
+      }
     }
   }
 
@@ -289,7 +331,6 @@ export class WebRTCService {
     const peerId = signal.senderId
 
     if (signal.type === 'JOIN') {
-      // Create offer for new peer
       const pc = this.getOrCreateMeetingPeer(peerId, currentUserId, currentUserName, roomCode)
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
@@ -325,7 +366,9 @@ export class WebRTCService {
       const pc = this.meetingPeers.get(peerId)
       if (pc) {
         try {
-          await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
+          if (pc.remoteDescription) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
+          }
         } catch (err) {
           console.warn('Error adding meeting ICE candidate', err)
         }
@@ -402,6 +445,8 @@ export class WebRTCService {
   // ===== Full Cleanup =====
 
   private cleanupCallPeer() {
+    this.isRemoteDescriptionSet = false
+    this.candidateQueue = []
     if (this.callPeerConnection) {
       this.callPeerConnection.close()
       this.callPeerConnection = null

@@ -48,11 +48,17 @@ export default function CallModal() {
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream
+      remoteVideoRef.current.play().catch((e) => {
+        console.warn('Remote video playback auto-start error:', e)
+      })
     }
     if (remoteAudioRef.current && remoteStream) {
       remoteAudioRef.current.srcObject = remoteStream
+      remoteAudioRef.current.play().catch((e) => {
+        console.warn('Remote audio playback auto-start error:', e)
+      })
     }
-  }, [remoteStream])
+  }, [remoteStream, activeCall?.isVideo])
 
   const formatDuration = (sec: number) => {
     const m = Math.floor(sec / 60)
@@ -76,8 +82,13 @@ export default function CallModal() {
 
   return (
     <>
-      {/* Hidden audio element for crystal-clear WebRTC voice playback */}
-      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+      {/* Audio element for WebRTC voice playback - rendered in DOM without display:none to prevent mobile audio throttling */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        className="absolute opacity-0 pointer-events-none w-0 h-0"
+      />
 
       {/* Incoming Call View */}
       <AnimatePresence>
@@ -182,24 +193,29 @@ export default function CallModal() {
               <div className="relative flex-1 flex items-center justify-center bg-gradient-to-b from-void-950 via-void-900/40 to-void-950 overflow-hidden min-h-0">
                 {activeCall.isVideo ? (
                   <>
-                    {remoteStream ? (
+                    {/* Persistent Remote Video Container */}
+                    <div className="relative w-full h-full flex items-center justify-center">
                       <video
                         ref={remoteVideoRef}
                         autoPlay
                         playsInline
-                        className="w-full h-full object-cover"
+                        muted={false}
+                        className={`w-full h-full object-cover transition-opacity duration-300 ${
+                          remoteStream ? 'opacity-100' : 'opacity-0 absolute inset-0 pointer-events-none'
+                        }`}
                       />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-center p-6 my-auto">
-                        <div className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-gradient-to-tr from-violet-600/30 to-cyan-500/20 border border-violet-400/30 flex items-center justify-center mb-4 shadow-glow">
-                          <User size={56} className="text-lavender animate-pulse" />
+                      {!remoteStream && (
+                        <div className="flex flex-col items-center justify-center text-center p-6 my-auto">
+                          <div className="h-28 w-28 sm:h-32 sm:w-32 rounded-full bg-gradient-to-tr from-violet-600/30 to-cyan-500/20 border border-violet-400/30 flex items-center justify-center mb-4 shadow-glow">
+                            <User size={56} className="text-lavender animate-pulse" />
+                          </div>
+                          <p className="text-base font-semibold text-silver">{activeCall.targetUserName}</p>
+                          <p className="text-xs text-cyan-300 mt-1 font-mono">
+                            {activeCall.status === 'RINGING' ? 'Calling...' : 'Connecting HD video...'}
+                          </p>
                         </div>
-                        <p className="text-base font-semibold text-silver">{activeCall.targetUserName}</p>
-                        <p className="text-xs text-cyan-300 mt-1 font-mono">
-                          {activeCall.status === 'RINGING' ? 'Calling...' : 'Connecting HD video...'}
-                        </p>
-                      </div>
-                    )}
+                      )}
+                    </div>
 
                     {/* Local Picture-in-Picture Tile */}
                     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 w-28 h-40 sm:w-36 sm:h-48 md:w-48 md:h-36 rounded-2xl overflow-hidden glass-panel border-2 border-violet-400/40 shadow-2xl z-20">
