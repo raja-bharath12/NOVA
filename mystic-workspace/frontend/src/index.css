@@ -83,4 +83,17 @@
   .luminous-number {
     text-shadow: 0 0 18px rgba(157, 134, 242, 0.55);
   }
+
+  .safe-bottom {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
+

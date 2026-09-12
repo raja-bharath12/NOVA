@@ -11,11 +11,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const isChat = location.pathname.startsWith('/chat')
 
   return (
-    <div className="flex h-screen h-[100dvh] w-full overflow-hidden bg-void-950 text-white relative">
+    <div className="flex h-screen h-[100dvh] w-full overflow-hidden bg-void-950 text-white relative select-none md:select-auto">
       <Sidebar />
       <div
         className={`flex-1 flex flex-col h-full min-w-0 ${
-          isChat ? 'overflow-hidden pb-16 md:pb-0' : 'overflow-y-auto overflow-x-hidden pb-20 md:pb-0'
+          isChat ? 'overflow-hidden pb-[4.25rem] md:pb-0' : 'overflow-y-auto overflow-x-hidden pb-[5rem] md:pb-0'
         } relative`}
       >
         <TopBar />
@@ -26,7 +26,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           className={`flex-1 w-full max-w-full flex flex-col min-h-0 ${
             isChat
               ? 'p-1 sm:p-3 md:px-8 md:py-6 overflow-hidden'
-              : 'px-3.5 sm:px-6 md:px-10 py-4 sm:py-6 md:py-8 overflow-y-auto'
+              : 'px-3 sm:px-6 md:px-10 py-3.5 sm:py-6 md:py-8 overflow-y-auto'
           }`}
         >
           <NotificationPermissionBanner />

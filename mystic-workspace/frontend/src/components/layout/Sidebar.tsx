@@ -142,32 +142,32 @@ export default function Sidebar() {
       </aside>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-void-950/90 backdrop-blur-xl border-t border-white/[0.08] px-2 py-1.5 shadow-[0_-4px_24px_rgba(0,0,0,0.5)]">
-        <div className="flex justify-around items-center max-w-lg mx-auto">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-void-950/95 backdrop-blur-2xl border-t border-white/[0.08] px-3 pt-1.5 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-[0_-8px_32px_rgba(0,0,0,0.6)]">
+        <div className="flex justify-around items-center max-w-md mx-auto">
           {MOBILE_PRIMARY_TABS.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end}>
               {({ isActive }) => (
                 <motion.div
-                  whileTap={{ scale: 0.88 }}
-                  className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all ${
+                  whileTap={{ scale: 0.85 }}
+                  className={`relative flex flex-col items-center gap-1 px-3.5 py-1 rounded-2xl transition-all ${
                     isActive
                       ? 'text-cyan-300 font-semibold'
-                      : 'text-muted hover:text-silver'
+                      : 'text-muted hover:text-silver active:text-cyan-300'
                   }`}
                 >
                   <div className="relative">
-                    <item.icon size={19} strokeWidth={isActive ? 2.2 : 1.75} />
+                    <item.icon size={20} strokeWidth={isActive ? 2.4 : 1.75} className="transition-transform duration-200" />
                     {item.to === '/chat' && unreadNotifsCount > 0 && (
-                      <span className="absolute -top-1.5 -right-2 h-3.5 min-w-[14px] px-1 rounded-full bg-cyan-400 text-void-950 text-[9px] font-bold flex items-center justify-center animate-pulseGlow">
+                      <span className="absolute -top-1.5 -right-2.5 h-4 min-w-[16px] px-1 rounded-full bg-gradient-to-r from-violet-500 to-cyan-400 text-void-950 text-[9px] font-extrabold flex items-center justify-center shadow-glow animate-pulseGlow">
                         {unreadNotifsCount}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] tracking-tight">{item.label}</span>
+                  <span className="text-[10px] tracking-tight font-medium">{item.label}</span>
                   {isActive && (
                     <motion.div
                       layoutId="mobile-active-tab-glow"
-                      className="absolute -bottom-1 h-1 w-6 rounded-full bg-gradient-to-r from-violet-400 to-cyan-400 shadow-glow"
+                      className="absolute -bottom-1 h-1 w-6 rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-400 to-cyan-400 shadow-glow"
                     />
                   )}
                 </motion.div>
@@ -177,16 +177,16 @@ export default function Sidebar() {
 
           {/* More Sheet Trigger Button */}
           <motion.button
-            whileTap={{ scale: 0.88 }}
+            whileTap={{ scale: 0.85 }}
             onClick={() => setShowMoreSheet((prev) => !prev)}
-            className={`relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-xl transition-all ${
+            className={`relative flex flex-col items-center gap-1 px-3.5 py-1 rounded-2xl transition-all ${
               isMoreActive || showMoreSheet
                 ? 'text-purple-300 font-semibold'
-                : 'text-muted hover:text-silver'
+                : 'text-muted hover:text-silver active:text-purple-300'
             }`}
           >
-            <Grid size={19} strokeWidth={isMoreActive || showMoreSheet ? 2.2 : 1.75} />
-            <span className="text-[10px] tracking-tight">More</span>
+            <Grid size={20} strokeWidth={isMoreActive || showMoreSheet ? 2.4 : 1.75} />
+            <span className="text-[10px] tracking-tight font-medium">More</span>
             {(isMoreActive || showMoreSheet) && (
               <motion.div
                 layoutId="mobile-active-tab-glow"
@@ -207,7 +207,7 @@ export default function Sidebar() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowMoreSheet(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/75 backdrop-blur-md"
             />
 
             {/* Slide-up Container */}
@@ -215,11 +215,11 @@ export default function Sidebar() {
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-              className="relative z-10 w-full bg-void-900/95 border-t border-purple-500/25 rounded-t-3xl shadow-2xl p-5 pb-8 backdrop-blur-2xl flex flex-col gap-4 max-h-[85vh] overflow-y-auto"
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="relative z-10 w-full bg-void-900/98 border-t border-purple-500/30 rounded-t-3xl shadow-2xl p-5 pb-[max(2rem,env(safe-area-inset-bottom))] backdrop-blur-2xl flex flex-col gap-4 max-h-[85vh] overflow-y-auto no-scrollbar"
             >
               {/* Drag Pill Handle */}
-              <div className="w-10 h-1 rounded-full bg-white/20 mx-auto -mt-1 mb-1" />
+              <div className="w-12 h-1.5 rounded-full bg-white/25 mx-auto -mt-1 mb-1" />
 
               {/* Sheet Header with User Info */}
               <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">

@@ -316,38 +316,38 @@ export const WatchRoomPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col select-none overflow-hidden">
       {/* Top Navbar */}
-      <header className="h-16 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-xl px-4 md:px-6 flex items-center justify-between z-30 shrink-0">
-        <div className="flex items-center gap-4 min-w-0">
+      <header className="h-14 md:h-16 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-xl px-3 md:px-6 flex items-center justify-between z-30 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <button
             onClick={() => navigate('/watch')}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             title="Back to Watch Together"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-2.5">
-              <h1 className="font-bold text-white text-base md:text-lg truncate max-w-[200px] md:max-w-md">
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-white text-xs sm:text-base md:text-lg truncate max-w-[120px] xs:max-w-[160px] sm:max-w-[200px] md:max-w-md">
                 {room.title}
               </h1>
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+              <div className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] sm:text-xs font-semibold flex-shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>LIVE SYNC</span>
+                <span className="hidden xs:inline">LIVE SYNC</span>
               </div>
             </div>
-            <p className="text-xs text-slate-400 truncate flex items-center gap-2">
-              <span>{room.media?.title || 'Video Stream'}</span>
+            <p className="text-[10px] sm:text-xs text-slate-400 truncate flex items-center gap-1 sm:gap-2">
+              <span className="truncate max-w-[100px] xs:max-w-[140px]">{room.media?.title || 'Video Stream'}</span>
               <span>•</span>
               <span className="flex items-center gap-1 text-slate-300">
-                <Shield className="w-3 h-3 text-indigo-400" /> Host: {room.hostName}
+                <Shield className="w-3 h-3 text-indigo-400" /> Host: {room.hostName?.split(' ')[0]}
               </span>
             </p>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
           {/* Room Code Badge */}
           <button
             onClick={handleCopyCode}
@@ -362,7 +362,7 @@ export const WatchRoomPage: React.FC = () => {
           {/* Share Link Button */}
           <button
             onClick={handleCopyLink}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-xs font-medium text-indigo-300 hover:text-indigo-200 transition-all"
+            className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-indigo-600/15 hover:bg-indigo-600/25 border border-indigo-500/30 text-xs font-medium text-indigo-300 hover:text-indigo-200 transition-all"
             title="Copy Invite Link"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
@@ -372,7 +372,7 @@ export const WatchRoomPage: React.FC = () => {
           {/* Viewers list trigger */}
           <button
             onClick={() => setShowMembersModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white transition-all"
+            className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white transition-all"
           >
             <Users className="w-3.5 h-3.5 text-indigo-400" />
             <span>{members.length || 1}</span>
@@ -383,7 +383,7 @@ export const WatchRoomPage: React.FC = () => {
           {isHost ? (
             <button
               onClick={handleEndRoom}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-xs font-semibold text-red-400 hover:text-red-300 transition-all"
+              className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-xs font-semibold text-red-400 hover:text-red-300 transition-all"
               title="End session for everyone"
             >
               <Power className="w-3.5 h-3.5" />
@@ -392,7 +392,7 @@ export const WatchRoomPage: React.FC = () => {
           ) : (
             <button
               onClick={handleLeaveRoom}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all"
+              className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all"
               title="Leave Room"
             >
               <LogOut className="w-3.5 h-3.5" />

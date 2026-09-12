@@ -1030,11 +1030,11 @@ export default function MusicJam() {
           </div>
 
           {currentTrack ? (
-            <div className="w-full max-w-lg flex flex-col items-center space-y-6 sm:space-y-8 z-10">
+            <div className="w-full max-w-lg flex flex-col items-center space-y-4 sm:space-y-6 md:space-y-8 z-10">
               {/* Spinning Cyber Vinyl Disc */}
               <div className="relative group">
                 <div
-                  className={`w-48 h-48 sm:w-60 sm:h-60 rounded-full bg-gradient-to-tr from-void-950 via-zinc-900 to-black p-2 border-4 border-zinc-800 shadow-[0_0_40px_rgba(168,85,247,0.3)] flex items-center justify-center relative ${
+                  className={`w-36 h-36 sm:w-52 sm:h-52 md:w-60 md:h-60 rounded-full bg-gradient-to-tr from-void-950 via-zinc-900 to-black p-2 border-4 border-zinc-800 shadow-[0_0_40px_rgba(168,85,247,0.3)] flex items-center justify-center relative ${
                     isPlaying ? 'animate-spin-slow' : ''
                   }`}
                   style={{ animationDuration: '8s' }}
@@ -1044,9 +1044,9 @@ export default function MusicJam() {
                     <div className="w-3/4 h-3/4 rounded-full border border-white/[0.05] flex items-center justify-center">
                       <div className="w-1/2 h-1/2 rounded-full border border-white/[0.1] flex items-center justify-center">
                         {/* Center Album Artwork */}
-                        <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-violet-600 via-fuchsia-500 to-cyan-400 p-1 shadow-inner flex items-center justify-center overflow-hidden">
+                        <div className="w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-gradient-to-tr from-violet-600 via-fuchsia-500 to-cyan-400 p-1 shadow-inner flex items-center justify-center overflow-hidden">
                           <div className="w-full h-full rounded-full bg-void-950 flex items-center justify-center">
-                            <Music size={28} className="text-cyan-300" />
+                            <Music size={22} className="text-cyan-300 sm:w-7 sm:h-7" />
                           </div>
                         </div>
                       </div>
@@ -1056,7 +1056,7 @@ export default function MusicJam() {
 
                 {/* Animated Pulsating Equalizer Waves */}
                 {isPlaying && (
-                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-end gap-1 px-4 py-1.5 rounded-full bg-void-900/90 border border-cyan-400/30 shadow-lg">
+                  <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-end gap-1 px-3 sm:px-4 py-1.5 rounded-full bg-void-900/90 border border-cyan-400/30 shadow-lg">
                     {[16, 24, 12, 28, 20, 32, 18, 26, 14].map((h, i) => (
                       <motion.div
                         key={i}
@@ -1070,16 +1070,16 @@ export default function MusicJam() {
               </div>
 
               {/* Track Metadata */}
-              <div className="text-center space-y-1.5 max-w-sm">
-                <h3 className="text-lg sm:text-2xl font-bold font-display text-white tracking-tight truncate">
+              <div className="text-center space-y-1 max-w-sm px-2">
+                <h3 className="text-base sm:text-xl md:text-2xl font-bold font-display text-white tracking-tight truncate">
                   {currentTrack.title}
                 </h3>
                 <p className="text-xs sm:text-sm font-medium text-cyan-300 truncate">{currentTrack.artist}</p>
-                {currentTrack.album && <p className="text-[11px] text-muted truncate">{currentTrack.album}</p>}
+                {currentTrack.album && <p className="text-[10px] sm:text-[11px] text-muted truncate">{currentTrack.album}</p>}
               </div>
 
               {/* Timeline Slider */}
-              <div className="w-full space-y-1.5">
+              <div className="w-full space-y-1 px-1">
                 <div className="relative flex items-center">
                   <input
                     type="range"
@@ -1094,16 +1094,16 @@ export default function MusicJam() {
                     className="w-full h-2 bg-void-900 rounded-lg appearance-none cursor-pointer accent-fuchsia-500 border border-white/[0.08]"
                   />
                 </div>
-                <div className="flex justify-between text-[11px] font-mono text-muted">
+                <div className="flex justify-between text-[10px] sm:text-[11px] font-mono text-muted">
                   <span>{formatTime(currentTime)}</span>
                   <span>{formatTime(duration || currentTrack.duration || 0)}</span>
                 </div>
               </div>
 
               {/* Playback Controls & Volume */}
-              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
                 {/* Volume Slider */}
-                <div className="flex items-center gap-2 text-muted">
+                <div className="hidden sm:flex items-center gap-2 text-muted">
                   <button onClick={() => setIsMuted(!isMuted)} className="hover:text-silver">
                     {isMuted || volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
                   </button>
@@ -1117,21 +1117,21 @@ export default function MusicJam() {
                       setVolume(parseFloat(e.target.value))
                       setIsMuted(false)
                     }}
-                    className="w-20 h-1.5 bg-void-900 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                    className="w-16 sm:w-20 h-1.5 bg-void-900 rounded-lg appearance-none cursor-pointer accent-cyan-400"
                   />
                 </div>
 
                 {/* Main Play / Pause & Skip Buttons */}
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
                   <motion.button
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.94 }}
                     onClick={handleTogglePlay}
                     disabled={!canControl}
-                    className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-violet-600 via-fuchsia-500 to-cyan-400 p-[2px] shadow-[0_0_24px_rgba(236,72,153,0.4)] disabled:opacity-50"
+                    className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-to-tr from-violet-600 via-fuchsia-500 to-cyan-400 p-[2px] shadow-[0_0_24px_rgba(236,72,153,0.4)] disabled:opacity-50"
                   >
                     <div className="h-full w-full bg-void-950 rounded-[14px] flex items-center justify-center text-white">
-                      {isPlaying ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+                      {isPlaying ? <Pause size={20} className="sm:w-6 sm:h-6" /> : <Play size={20} className="ml-1 sm:w-6 sm:h-6" />}
                     </div>
                   </motion.button>
 
@@ -1140,10 +1140,10 @@ export default function MusicJam() {
                     whileTap={{ scale: 0.95 }}
                     onClick={handleAdvanceNext}
                     disabled={!canControl || currentRoom?.queue.length === 0}
-                    className="p-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] disabled:opacity-40 text-silver border border-white/[0.08] transition-all"
+                    className="p-2.5 sm:p-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] disabled:opacity-40 text-silver border border-white/[0.08] transition-all"
                     title="Next Track in Queue"
                   >
-                    <SkipForward size={18} />
+                    <SkipForward size={16} className="sm:w-4 sm:h-4" />
                   </motion.button>
                 </div>
 
@@ -1158,14 +1158,14 @@ export default function MusicJam() {
               </div>
 
               {/* Floating Reaction Bar */}
-              <div className="flex items-center justify-center gap-2 p-2 rounded-2xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-md">
+              <div className="flex items-center justify-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl bg-white/[0.03] border border-white/[0.06] backdrop-blur-md">
                 {REACTION_EMOJIS.map((emoji) => (
                   <motion.button
                     key={emoji}
                     whileHover={{ scale: 1.3 }}
                     whileTap={{ scale: 0.85 }}
                     onClick={() => handleSendReaction(emoji)}
-                    className="p-1.5 text-lg hover:bg-white/[0.08] rounded-xl transition-all"
+                    className="p-1 sm:p-1.5 text-base sm:text-lg hover:bg-white/[0.08] rounded-xl transition-all"
                   >
                     {emoji}
                   </motion.button>
@@ -1189,130 +1189,152 @@ export default function MusicJam() {
           )}
         </div>
 
-        {/* RIGHT SIDEBAR: QUEUE DRAWER */}
+        {/* QUEUE DRAWER (Overlay Modal on Mobile, Side Panel on Desktop) */}
         <AnimatePresence>
           {showQueue && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="glass-panel border border-white/[0.08] rounded-3xl p-4 flex flex-col h-full overflow-hidden flex-shrink-0 z-30"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] mb-3">
-                <div className="flex items-center gap-2">
-                  <ListMusic size={16} className="text-violet-400" />
-                  <h3 className="font-bold text-sm text-silver">Up Next Queue</h3>
-                </div>
-                <button onClick={() => setShowQueue(false)} className="text-muted hover:text-silver">
-                  <X size={16} />
-                </button>
-              </div>
+            <>
+              {/* Mobile Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowQueue(false)}
+                className="md:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-sm"
+              />
 
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
-                {currentRoom?.queue.length === 0 ? (
-                  <div className="p-8 text-center text-xs text-muted">
-                    Queue is empty. Add songs to keep the music playing!
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="fixed md:relative inset-x-3 bottom-16 top-20 md:inset-auto z-50 md:z-30 md:w-80 glass-panel border border-white/[0.08] rounded-3xl p-4 flex flex-col h-auto md:h-full overflow-hidden flex-shrink-0 bg-void-950/95 md:bg-void-950/80 shadow-2xl md:shadow-none"
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] mb-3">
+                  <div className="flex items-center gap-2">
+                    <ListMusic size={16} className="text-violet-400" />
+                    <h3 className="font-bold text-sm text-silver">Up Next Queue</h3>
                   </div>
-                ) : (
-                  currentRoom?.queue.map((item, idx) => (
-                    <div
-                      key={item.id}
-                      className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-violet-500/30 flex items-center justify-between gap-2"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="font-mono text-xs text-muted w-4 text-center">{idx + 1}</span>
-                        <div className="min-w-0">
-                          <h5 className="text-xs font-bold text-silver truncate">{item.track.title}</h5>
-                          <p className="text-[10px] text-muted truncate">
-                            {item.track.artist} • By {item.addedByName}
-                          </p>
-                        </div>
-                      </div>
+                  <button onClick={() => setShowQueue(false)} className="text-muted hover:text-silver p-1 rounded-lg hover:bg-white/[0.04]">
+                    <X size={16} />
+                  </button>
+                </div>
 
-                      {canControl && (
-                        <button
-                          onClick={() => handleRemoveFromQueue(item.id)}
-                          className="p-1.5 rounded-lg text-muted hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                          title="Remove from queue"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+                  {currentRoom?.queue.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-muted">
+                      Queue is empty. Add songs to keep the music playing!
                     </div>
-                  ))
-                )}
-              </div>
+                  ) : (
+                    currentRoom?.queue.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] hover:border-violet-500/30 flex items-center justify-between gap-2"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="font-mono text-xs text-muted w-4 text-center">{idx + 1}</span>
+                          <div className="min-w-0">
+                            <h5 className="text-xs font-bold text-silver truncate">{item.track.title}</h5>
+                            <p className="text-[10px] text-muted truncate">
+                              {item.track.artist} • By {item.addedByName}
+                            </p>
+                          </div>
+                        </div>
 
-              <div className="pt-3 border-t border-white/[0.06] mt-2">
-                <button
-                  onClick={() => setShowAddTrackModal(true)}
-                  className="w-full py-2 rounded-xl bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border border-violet-400/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Plus size={14} />
-                  <span>Add Songs to Queue</span>
-                </button>
-              </div>
-            </motion.div>
+                        {canControl && (
+                          <button
+                            onClick={() => handleRemoveFromQueue(item.id)}
+                            className="p-1.5 rounded-lg text-muted hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            title="Remove from queue"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-white/[0.06] mt-2">
+                  <button
+                    onClick={() => setShowAddTrackModal(true)}
+                    className="w-full py-2.5 rounded-xl bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border border-violet-400/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>Add Songs to Queue</span>
+                  </button>
+                </div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
 
-        {/* RIGHT SIDEBAR: IN-ROOM CHAT DRAWER */}
+        {/* IN-ROOM CHAT DRAWER (Overlay Modal on Mobile, Side Panel on Desktop) */}
         <AnimatePresence>
           {showChat && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 320, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="glass-panel border border-white/[0.08] rounded-3xl p-4 flex flex-col h-full overflow-hidden flex-shrink-0 z-30"
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] mb-3">
-                <div className="flex items-center gap-2">
-                  <MessageSquare size={16} className="text-fuchsia-400" />
-                  <h3 className="font-bold text-sm text-silver">In-Room Chat</h3>
-                </div>
-                <button onClick={() => setShowChat(false)} className="text-muted hover:text-silver">
-                  <X size={16} />
-                </button>
-              </div>
+            <>
+              {/* Mobile Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowChat(false)}
+                className="md:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-sm"
+              />
 
-              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0 text-xs">
-                {chatMessages.length === 0 ? (
-                  <div className="p-8 text-center text-muted">
-                    No messages yet. Say hi or drop a reaction!
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="fixed md:relative inset-x-3 bottom-16 top-20 md:inset-auto z-50 md:z-30 md:w-80 glass-panel border border-white/[0.08] rounded-3xl p-4 flex flex-col h-auto md:h-full overflow-hidden flex-shrink-0 bg-void-950/95 md:bg-void-950/80 shadow-2xl md:shadow-none"
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] mb-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare size={16} className="text-fuchsia-400" />
+                    <h3 className="font-bold text-sm text-silver">In-Room Chat</h3>
                   </div>
-                ) : (
-                  chatMessages.map((msg, i) => (
-                    <div key={i} className="p-2 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-0.5">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-bold text-cyan-300">{msg.senderName}</span>
-                        <span className="text-muted font-mono">
-                          {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                        </span>
-                      </div>
-                      <p className="text-silver">{msg.content}</p>
-                    </div>
-                  ))
-                )}
-                <div ref={chatEndRef} />
-              </div>
+                  <button onClick={() => setShowChat(false)} className="text-muted hover:text-silver p-1 rounded-lg hover:bg-white/[0.04]">
+                    <X size={16} />
+                  </button>
+                </div>
 
-              <form onSubmit={handleSendChatMessage} className="pt-2 border-t border-white/[0.06] mt-2 flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="w-full bg-void-950 border border-white/[0.1] rounded-xl px-3 py-1.5 text-xs text-silver focus:outline-none focus:border-fuchsia-400"
-                />
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim()}
-                  className="p-2 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-40 text-white transition-all flex-shrink-0"
-                >
-                  <Send size={13} />
-                </button>
-              </form>
-            </motion.div>
+                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 min-h-0 text-xs">
+                  {chatMessages.length === 0 ? (
+                    <div className="p-8 text-center text-muted">
+                      No messages yet. Say hi or drop a reaction!
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, i) => (
+                      <div key={i} className="p-2 rounded-xl bg-white/[0.02] border border-white/[0.04] space-y-0.5">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-bold text-cyan-300">{msg.senderName}</span>
+                          <span className="text-muted font-mono">
+                            {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                        <p className="text-silver">{msg.content}</p>
+                      </div>
+                    ))
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                <form onSubmit={handleSendChatMessage} className="pt-2 border-t border-white/[0.06] mt-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Type a message..."
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    className="w-full bg-void-950 border border-white/[0.1] rounded-xl px-3 py-2 text-xs text-silver focus:outline-none focus:border-fuchsia-400"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    className="p-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-40 text-white transition-all flex-shrink-0"
+                  >
+                    <Send size={13} />
+                  </button>
+                </form>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>
