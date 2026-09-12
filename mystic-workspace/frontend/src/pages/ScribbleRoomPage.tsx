@@ -12,6 +12,7 @@ import {
   Sparkles,
   HelpCircle,
   Crown,
+  Trophy,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
@@ -238,11 +239,17 @@ export default function ScribbleRoomPage() {
           )}
         </div>
 
-        {/* Turn Timer & Actions */}
+        {/* Turn Timer, Live Score & Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* User Score Badge (Always Visible on Mobile & Desktop) */}
+          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold font-mono shadow-sm">
+            <Trophy size={14} className="text-amber-400" />
+            <span>{currentUserPlayer?.score || 0} PTS</span>
+          </div>
+
           {roomState.phase !== 'LOBBY' && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-mono font-bold">
-              <Clock size={14} className="animate-pulse" />
+            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-200 border border-purple-500/30 text-xs font-mono font-bold">
+              <Clock size={14} className="animate-pulse text-purple-400" />
               <span>00:{roomState.timeRemaining.toString().padStart(2, '0')}</span>
             </div>
           )}
@@ -448,22 +455,107 @@ export default function ScribbleRoomPage() {
             </div>
           </div>
 
-          {/* Mobile Tab Switcher for Chat & Leaderboard */}
-          <div className="block lg:hidden w-full space-y-3">
-            <div className="h-[340px]">
-              <ScribbleChat
-                messages={messages}
-                onSendMessage={handleSendMessage}
-                hasGuessed={hasGuessed}
+          {/* Mobile Screen: Whiteboard Canvas + Keyboard-Ready Guess Bar */}
+          <div className="block lg:hidden w-full flex flex-col space-y-2">
+            {/* Whiteboard Canvas */}
+            <div className="w-full h-[250px] sm:h-[320px] relative">
+              <ScribbleCanvas
                 isDrawer={isDrawer && roomState.phase === 'DRAWING'}
+                currentTool={currentTool}
+                currentColor={currentColor}
+                currentWidth={currentWidth}
+                onEmitDrawAction={handleEmitDrawAction}
+                incomingAction={incomingAction}
+                initialActions={initialActions}
               />
             </div>
 
-            <div className="h-[220px]">
-              <ScribbleLeaderboard
-                players={roomState.players}
-                currentDrawerId={roomState.currentDrawerId}
-              />
+            {/* Drawer Tools (If Drawer) */}
+            {(isDrawer || roomState.players.length === 1) && roomState.phase === 'DRAWING' && (
+              <div className="w-full">
+                <ScribbleToolbar
+                  currentTool={currentTool}
+                  setTool={setCurrentTool}
+                  currentColor={currentColor}
+                  setColor={setCurrentColor}
+                  currentWidth={currentWidth}
+                  setWidth={setCurrentWidth}
+                  onClear={handleClear}
+                  onUndo={handleUndo}
+                />
+              </div>
+            )}
+
+            {/* Mobile Guess Input & Recent Messages (Whiteboard stays in full view while typing!) */}
+            <div className="w-full bg-[#13141f]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2.5 shadow-xl flex flex-col gap-2">
+              {/* Mini Recent Guesses Strip */}
+              <div className="max-h-[65px] overflow-y-auto space-y-1 text-xs px-1 custom-scrollbar">
+                {messages.length === 0 ? (
+                  <span className="text-white/40 text-[11px] italic">Live guesses and hints will appear here...</span>
+                ) : (
+                  messages.slice(-4).map((m) => (
+                    <div key={m.id} className="truncate">
+                      {m.type === 'CORRECT_GUESS' ? (
+                        <span className="text-emerald-400 font-bold">🎉 {m.content} (+{m.pointsEarned} pts)</span>
+                      ) : m.type === 'CLOSE_GUESS' ? (
+                        <span className="text-amber-400 font-semibold animate-pulse">⚠️ {m.content}</span>
+                      ) : (
+                        <span className="text-white/80"><b className="text-silver mr-1">{m.senderName}:</b>{m.content}</span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Mobile Typing Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  const form = e.currentTarget
+                  const inputEl = form.elements.namedItem('mobileGuess') as HTMLInputElement
+                  if (inputEl && inputEl.value.trim()) {
+                    handleSendMessage(inputEl.value.trim())
+                    inputEl.value = ''
+                  }
+                }}
+                className="flex gap-2 w-full"
+              >
+                <input
+                  name="mobileGuess"
+                  type="text"
+                  autoComplete="off"
+                  disabled={hasGuessed || (isDrawer && roomState.phase === 'DRAWING')}
+                  placeholder={
+                    isDrawer && roomState.phase === 'DRAWING'
+                      ? 'You are drawing! Chat disabled'
+                      : hasGuessed
+                      ? '✓ Correct! You solved it'
+                      : 'Type your answer here...'
+                  }
+                  className="flex-1 bg-white/5 border border-white/10 focus:border-purple-500 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/40 focus:outline-none transition-all disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={hasGuessed || (isDrawer && roomState.phase === 'DRAWING')}
+                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 shadow-glow"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+
+            {/* Mobile Live Scores Bar */}
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs">
+              <span className="text-white/60 font-semibold flex items-center gap-1">
+                <Trophy size={12} className="text-amber-400" /> Scores:
+              </span>
+              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar">
+                {roomState.players.map((p, idx) => (
+                  <span key={p.userId} className="font-mono text-[11px] text-white/80 whitespace-nowrap">
+                    #{idx + 1} {p.name}: <b className="text-purple-300">{p.score}p</b>
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>

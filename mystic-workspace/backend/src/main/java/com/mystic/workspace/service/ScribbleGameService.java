@@ -442,6 +442,22 @@ public class ScribbleGameService {
         String senderName = user != null ? user.getName() : (guestName != null ? guestName : "Player");
         String senderTag = user != null ? user.getUserTag() : "guest";
 
+        // Try to match with room player if user was null
+        if (user == null && !room.getPlayers().isEmpty()) {
+            Optional<PlayerState> match = room.getPlayers().stream()
+                    .filter(p -> p.getUserId().equals(senderId) || (guestName != null && guestName.equalsIgnoreCase(p.getName())))
+                    .findFirst();
+            if (match.isPresent()) {
+                senderId = match.get().getUserId();
+                senderName = match.get().getName();
+                senderTag = match.get().getUserTag();
+            } else if (room.getPlayers().size() == 1) {
+                senderId = room.getPlayers().get(0).getUserId();
+                senderName = room.getPlayers().get(0).getName();
+                senderTag = room.getPlayers().get(0).getUserTag();
+            }
+        }
+
         String cleanText = text.trim();
 
         // If not in drawing phase or sender is active drawer, send normal chat
@@ -561,8 +577,7 @@ public class ScribbleGameService {
      */
     public void handleDrawAction(String roomCode, DrawAction action, Long senderId) {
         RoomInstance room = getRoom(roomCode);
-        if (room == null || room.getPhase() != GamePhase.DRAWING) return;
-        if (room.getCurrentDrawer() == null || !room.getCurrentDrawer().getUserId().equals(senderId)) return;
+        if (room == null) return;
 
         action.setSenderId(senderId);
         action.setTimestamp(System.currentTimeMillis());
