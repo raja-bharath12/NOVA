@@ -47,6 +47,10 @@ public class WebPushService {
 
     @PostConstruct
     public void init() {
+        if (vapidPublicKey == null || vapidPublicKey.isBlank() || vapidPrivateKey == null || vapidPrivateKey.isBlank()) {
+            log.info("WebPushService: VAPID keys not configured. Push notifications will be skipped.");
+            return;
+        }
         try {
             if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
                 Security.addProvider(new BouncyCastleProvider());
@@ -56,9 +60,10 @@ public class WebPushService {
             pushService.setPublicKey(vapidPublicKey.trim());
             pushService.setPrivateKey(vapidPrivateKey.trim());
             pushService.setSubject(vapidSubject.trim());
-            log.info("WebPushService initialized with VAPID subject: {}", vapidSubject);
+            log.info("WebPushService initialized successfully with VAPID subject: {}", vapidSubject);
         } catch (Exception e) {
-            log.error("Failed to initialize WebPushService: {}", e.getMessage(), e);
+            pushService = null;
+            log.warn("WebPushService: VAPID key initialization bypassed ({}). Push notifications disabled until valid keys are supplied.", e.getMessage());
         }
     }
 
