@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { websocketService } from '../services/websocketService'
 import { webrtcService } from '../services/webrtcService'
@@ -40,6 +41,8 @@ const CallContext = createContext<CallContextValue | undefined>(undefined)
 
 export function CallProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [incomingCall, setIncomingCall] = useState<CallSignal | null>(null)
   const [activeCall, setActiveCall] = useState<{
     targetUserId: number
@@ -371,6 +374,11 @@ export function CallProvider({ children }: { children: ReactNode }) {
     setRemoteStream(null)
     setIsMicMuted(false)
     setIsCamOff(false)
+
+    // Automatically navigate back to chat screen when call terminates
+    if (!location.pathname.startsWith('/chat')) {
+      navigate('/chat')
+    }
   }
 
   function toggleMic() {
