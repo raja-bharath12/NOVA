@@ -6,3 +6,4 @@ target/
 *.zip
 *.timestamp-*.mjs
 *.tsbuildinfo
+uploads/
