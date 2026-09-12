@@ -9,10 +9,10 @@ import com.mystic.workspace.repository.PushSubscriptionRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import nl.martijndwars.web_push.Notification;
-import nl.martijndwars.web_push.PushService;
-import nl.martijndwars.web_push.Subscription;
-import nl.martijndwars.web_push.Urgency;
+import nl.martijndwars.webpush.Notification;
+import nl.martijndwars.webpush.PushService;
+import nl.martijndwars.webpush.Subscription;
+import nl.martijndwars.webpush.Urgency;
 import org.apache.http.HttpResponse;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -117,7 +117,7 @@ public class WebPushService {
             return;
         }
 
-        boolean isVideo = signal.getIsVideo() != null && signal.getIsVideo();
+        boolean isVideo = signal.isVideo();
         String callType = isVideo ? "VIDEO" : "AUDIO";
 
         Map<String, Object> payload = new HashMap<>();
@@ -130,7 +130,7 @@ public class WebPushService {
         payload.put("callerTag", caller.getUserTag());
         payload.put("callType", callType);
         payload.put("isVideo", isVideo);
-        payload.put("roomId", signal.getRoomId() != null ? signal.getRoomId() : "call_" + caller.getId() + "_" + recipient.getId());
+        payload.put("roomId", signal.getCallId() != null ? signal.getCallId() : "call_" + caller.getId() + "_" + recipient.getId());
         payload.put("url", "/?action=accept&callerId=" + caller.getId() + "&callerName=" + caller.getName() + "&isVideo=" + isVideo);
         payload.put("tag", "incoming-call-" + caller.getId());
         payload.put("timestamp", System.currentTimeMillis());
@@ -165,17 +165,14 @@ public class WebPushService {
 
             for (PushSubscription sub : subscriptions) {
                 try {
-                    Subscription subscription = new Subscription(
-                            sub.getEndpoint(),
-                            new Subscription.Keys(sub.getP256dh(), sub.getAuth())
-                    );
-
-                    Notification notification = new Notification(
-                            subscription,
-                            payloadJson,
-                            urgency,
-                            ttlSeconds
-                    );
+                    Notification notification = Notification.builder()
+                            .endpoint(sub.getEndpoint())
+                            .userPublicKey(sub.getP256dh())
+                            .userAuth(sub.getAuth())
+                            .payload(payloadJson.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                            .urgency(urgency)
+                            .ttl(ttlSeconds)
+                            .build();
 
                     HttpResponse response = pushService.send(notification);
                     int statusCode = response.getStatusLine().getStatusCode();

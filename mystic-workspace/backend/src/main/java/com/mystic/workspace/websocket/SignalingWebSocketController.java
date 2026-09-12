@@ -5,6 +5,7 @@ import com.mystic.workspace.dto.MeetingSignalDto;
 import com.mystic.workspace.entity.User;
 import com.mystic.workspace.repository.UserRepository;
 import com.mystic.workspace.security.UserPrincipal;
+import com.mystic.workspace.service.WebPushService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.MessageMapping;

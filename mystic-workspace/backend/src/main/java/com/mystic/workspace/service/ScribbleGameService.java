@@ -142,7 +142,6 @@ public class ScribbleGameService {
             PlayerState hostPlayer = PlayerState.builder()
                     .userId(host.getId())
                     .name(host.getName())
-                    .avatar(host.getAvatar())
                     .userTag(host.getUserTag())
                     .score(0)
                     .roundScore(0)
@@ -186,7 +185,7 @@ public class ScribbleGameService {
 
         Long userId = user != null ? user.getId() : (guestReq != null ? 5000L + random.nextInt(5000) : 9999L);
         String name = user != null ? user.getName() : (guestReq != null && guestReq.getPlayerName() != null ? guestReq.getPlayerName() : "Guest " + userId);
-        String avatar = user != null ? user.getAvatar() : (guestReq != null ? guestReq.getAvatar() : null);
+        String avatar = guestReq != null ? guestReq.getAvatar() : null;
         String tag = user != null ? user.getUserTag() : (guestReq != null ? guestReq.getUserTag() : "guest");
 
         // Check if player already in room

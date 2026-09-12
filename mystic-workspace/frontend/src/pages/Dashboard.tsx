@@ -89,11 +89,11 @@ export default function Dashboard() {
         {/* Quick Launch Action Pills */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => navigate('/scribble')}
+            onClick={() => navigate('/games')}
             className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-gradient-to-r from-purple-600/30 to-pink-600/30 hover:from-purple-600/50 hover:to-pink-600/50 text-purple-200 border border-purple-500/40 text-xs font-bold transition-all hover:scale-105 shadow-glow"
           >
             <Gamepad2 className="w-3.5 h-3.5 text-purple-300" />
-            <span>Play Scribble</span>
+            <span>Games Hub</span>
           </button>
           <button
             onClick={() => navigate('/meetings')}
@@ -176,7 +176,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 🎨 Scribble Game Arena Interactive Card */}
+      {/* 🎮 Multiplayer Games Hub Interactive Card */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/40 via-[#16172b] to-indigo-950/40 border border-purple-500/30 p-5 sm:p-6 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-5 group hover:border-purple-500/60 transition-all">
         <div className="flex items-start sm:items-center gap-4">
           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white shadow-glow shrink-0 group-hover:scale-110 transition-transform">
@@ -184,25 +184,25 @@ export default function Dashboard() {
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h2 className="text-base sm:text-lg font-bold text-white">Scribble & Guess Arena</h2>
+              <h2 className="text-base sm:text-lg font-bold text-white">Multiplayer Games & Arcade</h2>
               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Online / Ready to Play
+                Live Arena Available
               </span>
             </div>
             <p className="text-xs text-white/60 max-w-xl">
-              Real-time multiplayer drawing & guessing game with live stroke sync, flood fill, timed letter clues, and speed scoring!
+              Play real-time multiplayer games including Scribble & Guess, upcoming Trivia Blitz, Wordle Royale, and Grandmaster Chess!
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5 sm:self-center">
           <button
-            onClick={() => navigate('/scribble')}
+            onClick={() => navigate('/games')}
             className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-glow flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
           >
             <Play size={14} className="fill-current" />
-            <span>Launch Game Hub</span>
+            <span>Open Games Hub</span>
           </button>
         </div>
       </div>
