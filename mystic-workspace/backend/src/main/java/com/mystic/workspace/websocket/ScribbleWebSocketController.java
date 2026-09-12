@@ -24,9 +24,7 @@ public class ScribbleWebSocketController {
     @MessageMapping("/scribble/{roomCode}/start")
     public void handleStartGame(@DestinationVariable String roomCode, Principal principal) {
         User user = resolveUser(principal);
-        if (user != null) {
-            scribbleService.startGame(roomCode, user.getId());
-        }
+        scribbleService.startGame(roomCode, user != null ? user.getId() : null);
     }
 
     @MessageMapping("/scribble/{roomCode}/select-word")
@@ -36,8 +34,8 @@ public class ScribbleWebSocketController {
             Principal principal
     ) {
         User user = resolveUser(principal);
-        if (user != null && req != null && req.getWord() != null) {
-            scribbleService.selectWord(roomCode, user.getId(), req.getWord());
+        if (req != null && req.getWord() != null) {
+            scribbleService.selectWord(roomCode, user != null ? user.getId() : null, req.getWord());
         }
     }
 
@@ -48,8 +46,8 @@ public class ScribbleWebSocketController {
             Principal principal
     ) {
         User user = resolveUser(principal);
-        if (user != null && action != null) {
-            scribbleService.handleDrawAction(roomCode, action, user.getId());
+        if (action != null) {
+            scribbleService.handleDrawAction(roomCode, action, user != null ? user.getId() : null);
         }
     }
 
@@ -67,9 +65,7 @@ public class ScribbleWebSocketController {
     @MessageMapping("/scribble/{roomCode}/leave")
     public void handleLeave(@DestinationVariable String roomCode, Principal principal) {
         User user = resolveUser(principal);
-        if (user != null) {
-            scribbleService.leaveRoom(roomCode, user.getId());
-        }
+        scribbleService.leaveRoom(roomCode, user != null ? user.getId() : null);
     }
 
     private User resolveUser(Principal principal) {

@@ -133,8 +133,8 @@ public class ScribbleGameService {
         RoomInstance room = new RoomInstance(
                 roomCode,
                 req.getTitle(),
-                host != null ? host.getId() : 1000L + random.nextInt(9000),
-                host != null ? host.getName() : "Host",
+                host != null ? host.getId() : null,
+                host != null ? host.getName() : null,
                 settings
         );
 
@@ -183,21 +183,30 @@ public class ScribbleGameService {
         RoomInstance room = getRoom(roomCode);
         if (room == null) return null;
 
-        Long userId = user != null ? user.getId() : (guestReq != null ? 5000L + random.nextInt(5000) : 9999L);
-        String name = user != null ? user.getName() : (guestReq != null && guestReq.getPlayerName() != null ? guestReq.getPlayerName() : "Guest " + userId);
+        Long userId = user != null ? user.getId() : (guestReq != null && guestReq.getUserTag() != null ? (long) Math.abs(guestReq.getUserTag().hashCode()) : 9999L);
+        String name = user != null ? user.getName() : (guestReq != null && guestReq.getPlayerName() != null ? guestReq.getPlayerName() : "Player");
         String avatar = guestReq != null ? guestReq.getAvatar() : null;
         String tag = user != null ? user.getUserTag() : (guestReq != null ? guestReq.getUserTag() : "guest");
 
-        // Check if player already in room
-        Optional<PlayerState> existing = room.getPlayers().stream().filter(p -> p.getUserId().equals(userId)).findFirst();
+        // Check if player already in room by userId or name match
+        Optional<PlayerState> existing = room.getPlayers().stream()
+                .filter(p -> p.getUserId().equals(userId) || (name != null && name.equalsIgnoreCase(p.getName())))
+                .findFirst();
         if (existing.isPresent()) {
-            existing.get().setConnected(true);
-            existing.get().setName(name);
+            PlayerState player = existing.get();
+            player.setConnected(true);
+            player.setUserId(userId);
+            player.setName(name);
+            if (room.getHostId() == null || room.getHostId().equals(userId)) {
+                room.hostId = userId;
+                room.hostName = name;
+                player.setHost(true);
+            }
         } else {
             if (room.getPlayers().size() >= room.getSettings().getMaxPlayers()) {
                 throw new IllegalStateException("Room is full!");
             }
-            boolean isFirst = room.getPlayers().isEmpty();
+            boolean isFirst = room.getPlayers().isEmpty() || room.getHostId() == null;
             PlayerState newPlayer = PlayerState.builder()
                     .userId(userId)
                     .name(name)
@@ -229,9 +238,19 @@ public class ScribbleGameService {
 
         Optional<PlayerState> playerOpt = room.getPlayers().stream().filter(p -> p.getUserId().equals(userId)).findFirst();
         if (playerOpt.isPresent()) {
-            PlayerState p = playerOpt.get();
-            p.setConnected(false);
-            broadcastSystemChat(room, p.getName() + " left the room.", ChatMessage.MsgType.PLAYER_LEAVE);
+            PlayerState player = playerOpt.get();
+            player.setConnected(false);
+            room.getPlayers().remove(player);
+            broadcastSystemChat(room, player.getName() + " left the room.", ChatMessage.MsgType.PLAYER_LEAVE);
+
+            // If host left, elect new host
+            if (player.isHost() && !room.getPlayers().isEmpty()) {
+                PlayerState nextHost = room.getPlayers().get(0);
+                nextHost.setHost(true);
+                room.hostId = nextHost.getUserId();
+                room.hostName = nextHost.getName();
+                broadcastSystemChat(room, nextHost.getName() + " is now the room host!", ChatMessage.MsgType.SYSTEM);
+            }
 
             // If current drawer left, advance turn
             if (room.getCurrentDrawer() != null && room.getCurrentDrawer().getUserId().equals(userId)) {
@@ -261,12 +280,7 @@ public class ScribbleGameService {
      */
     public synchronized void startGame(String roomCode, Long hostId) {
         RoomInstance room = getRoom(roomCode);
-        if (room == null) return;
-        if (!room.getHostId().equals(hostId) && !room.getPlayers().isEmpty() && !room.getPlayers().get(0).getUserId().equals(hostId)) {
-            log.warn("Non-host {} attempted to start game in {}", hostId, roomCode);
-            return;
-        }
-        if (room.getPlayers().size() < 1) return;
+        if (room == null || room.getPlayers().isEmpty()) return;
 
         room.phase = GamePhase.WORD_SELECTION;
         room.currentRound = 1;

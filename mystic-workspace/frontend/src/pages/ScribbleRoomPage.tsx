@@ -51,7 +51,13 @@ export default function ScribbleRoomPage() {
   const [drawerWordChoices, setDrawerWordChoices] = useState<WordOption[]>([])
 
   const effectiveUserId = user?.id || 9999
-  const isHost = roomState?.hostId === effectiveUserId || (roomState?.players[0]?.userId === effectiveUserId)
+  const isHost =
+    roomState?.hostId === effectiveUserId ||
+    Boolean(roomState?.players?.some((p) => p.userId === effectiveUserId && p.isHost)) ||
+    Boolean(roomState?.players?.length && roomState.players[0].userId === effectiveUserId) ||
+    Boolean(user?.name && roomState?.hostName && user.name.trim().toLowerCase() === roomState.hostName.trim().toLowerCase()) ||
+    Boolean(user?.name && roomState?.players?.[0] && user.name.trim().toLowerCase() === roomState.players[0].name.trim().toLowerCase()) ||
+    Boolean(roomState?.players?.length === 1)
   const isDrawer = roomState?.currentDrawerId === effectiveUserId
 
   // Check if current user already guessed this turn
@@ -304,24 +310,36 @@ export default function ScribbleRoomPage() {
 
             {/* Host Start Match Button */}
             <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2 text-xs text-white/50">
+              {/* Only visible on tablet/desktop, hidden on mobile */}
+              <div className="hidden md:flex items-center gap-2 text-xs text-white/50">
                 <Copy size={14} />
-                <span>Link: {window.location.origin}/scribble/room/{roomState.roomCode}</span>
+                <span className="truncate max-w-[280px]">Link: {window.location.origin}/scribble/room/{roomState.roomCode}</span>
               </div>
 
-              {isHost ? (
-                <button
-                  onClick={handleStartGame}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95"
-                >
-                  <Play size={16} className="fill-current" />
-                  <span>Start Game Match</span>
-                </button>
-              ) : (
-                <div className="text-xs text-purple-300 font-semibold animate-pulse">
-                  Waiting for host ({roomState.hostName}) to start match...
-                </div>
-              )}
+              <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3">
+                {isHost ? (
+                  <button
+                    onClick={handleStartGame}
+                    className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-500 hover:from-purple-500 hover:to-indigo-400 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  >
+                    <Play size={18} className="fill-current" />
+                    <span>Start Game Match</span>
+                  </button>
+                ) : (
+                  <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-xs text-purple-300 font-semibold animate-pulse text-center sm:text-left">
+                      Waiting for host ({roomState.hostName || 'Host'}) to start match...
+                    </div>
+                    <button
+                      onClick={handleStartGame}
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                    >
+                      <Play size={14} className="fill-current" />
+                      <span>Start Match Now</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
