@@ -101,8 +101,25 @@ export default function Chat() {
   const [copiedLink, setCopiedLink] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const initialDesktopLoadDone = useRef(false)
+
+  // Scroll to bottom helper for WhatsApp-like instant/smooth auto-scrolling
+  const scrollToBottom = (smooth = false) => {
+    if (messagesContainerRef.current) {
+      if (smooth) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        })
+      } else {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
+    }
+  }
 
   // Load conversations on mount
   useEffect(() => {
@@ -130,10 +147,28 @@ export default function Chat() {
     }
   }
 
-  // Auto-scroll on new message
+  // Auto-scroll on new message or typing updates
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollToBottom(true)
   }, [messages, typingUsers])
+
+  // Mobile virtual keyboard visualViewport listener to keep recent messages visible above keyboard
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return
+
+    const handleVisualViewportResize = () => {
+      if (selectedConversation) {
+        scrollToBottom(false)
+      }
+    }
+
+    window.visualViewport.addEventListener('resize', handleVisualViewportResize)
+    window.visualViewport.addEventListener('scroll', handleVisualViewportResize)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleVisualViewportResize)
+      window.visualViewport?.removeEventListener('scroll', handleVisualViewportResize)
+    }
+  }, [selectedConversation])
 
   async function loadConversations(silent = false) {
     try {
@@ -165,6 +200,9 @@ export default function Chat() {
           const lastMsg = msgs[msgs.length - 1]
           chatService.markAsRead(selectedConversation.id, lastMsg.id)
         }
+        // Instant scroll to bottom when conversation messages load
+        setTimeout(() => scrollToBottom(false), 20)
+        setTimeout(() => scrollToBottom(false), 100)
       })
       .finally(() => setLoadingMessages(false))
 
@@ -770,25 +808,31 @@ export default function Chat() {
 
       {/* ===== CENTER PANE: WhatsApp / Instagram Direct Chat Stream ===== */}
       <div
-        className={`flex-1 flex-col glass-panel border border-white/[0.08] overflow-hidden min-w-0 min-h-0 h-full bg-void-950/80 backdrop-blur-xl relative ${
-          !selectedConversation ? 'hidden md:flex' : 'flex'
+        className={`flex-1 flex-col min-w-0 min-h-0 h-full bg-void-950/95 backdrop-blur-xl ${
+          !selectedConversation
+            ? 'hidden md:flex glass-panel border border-white/[0.08] relative'
+            : 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto md:glass-panel md:border md:border-white/[0.08] flex'
         }`}
       >
         {selectedConversation ? (
           <>
-            {/* Instagram / WhatsApp Style Chat Header */}
-            <div className="flex-shrink-0 px-3.5 sm:px-5 py-3 border-b border-white/[0.08] bg-void-950/90 backdrop-blur-md flex items-center justify-between z-10">
-              <div className="flex items-center gap-3 min-w-0">
+            {/* WhatsApp Style Chat Header - Pinned at Top */}
+            <div className="flex-shrink-0 sticky top-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3 pt-[max(0.65rem,env(safe-area-inset-top))] border-b border-white/[0.08] bg-void-950/98 backdrop-blur-xl flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                 {/* Mobile Back Button */}
                 <button
+                  type="button"
                   onClick={() => setSelectedConversation(null)}
-                  className="md:hidden p-1.5 -ml-1 rounded-xl text-muted hover:text-silver hover:bg-white/[0.06] transition-colors"
+                  className="md:hidden p-1.5 -ml-1 rounded-xl text-muted hover:text-silver hover:bg-white/[0.06] active:bg-white/[0.1] transition-colors flex-shrink-0"
                   title="Back to Conversations"
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={22} />
                 </button>
 
-                <div className="relative flex-shrink-0">
+                <div
+                  className="relative flex-shrink-0 cursor-pointer"
+                  onClick={() => setShowRightPane(!showRightPane)}
+                >
                   <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-violet-600 via-fuchsia-500 to-cyan-400 p-[2px]">
                     <div className="h-full w-full bg-void-950 rounded-full flex items-center justify-center font-display font-bold text-xs text-silver">
                       {selectedConversation.type === 'DIRECT'
@@ -807,12 +851,17 @@ export default function Chat() {
                   )}
                 </div>
 
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-silver truncate">
+                <div
+                  className="min-w-0 cursor-pointer flex-1"
+                  onClick={() => setShowRightPane(!showRightPane)}
+                >
+                  <h3 className="text-sm sm:text-base font-bold text-silver truncate">
                     {selectedConversation.title}
                   </h3>
                   <p className="text-[11px] text-muted flex items-center gap-1.5 truncate">
-                    {selectedConversation.type === 'DIRECT' ? (
+                    {typingUsers.size > 0 ? (
+                      <span className="text-cyan-400 font-medium animate-pulse">typing...</span>
+                    ) : selectedConversation.type === 'DIRECT' ? (
                       <>
                         <span className="font-mono text-cyan-300">
                           @{selectedConversation.members.find((m) => m.id !== user?.id)?.userTag?.toLowerCase() || 'user'}
@@ -823,21 +872,21 @@ export default function Chat() {
                         </span>
                       </>
                     ) : (
-                      `${selectedConversation.members.length} members`
+                      selectedConversation.members.map((m) => m.name.split(' ')[0]).join(', ') || `${selectedConversation.members.length} members`
                     )}
                   </p>
                 </div>
               </div>
 
               {/* Call & Info Action Icons */}
-              <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 {selectedConversation.type === 'DIRECT' && (
                   <>
                     <motion.button
                       whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.92 }}
                       onClick={() => startCall(false)}
-                      className="h-9 w-9 rounded-xl bg-white/[0.04] hover:bg-violet-500/20 text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all"
+                      className="h-9 w-9 rounded-xl bg-white/[0.04] hover:bg-violet-500/20 active:bg-violet-500/30 text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all"
                       title="Start Voice Call"
                     >
                       <Phone size={16} />
@@ -846,7 +895,7 @@ export default function Chat() {
                       whileHover={{ scale: 1.08 }}
                       whileTap={{ scale: 0.92 }}
                       onClick={() => startCall(true)}
-                      className="h-9 w-9 rounded-xl bg-white/[0.04] hover:bg-cyan-500/20 text-muted hover:text-cyan-300 border border-white/[0.06] flex items-center justify-center transition-all"
+                      className="h-9 w-9 rounded-xl bg-white/[0.04] hover:bg-cyan-500/20 active:bg-cyan-500/30 text-muted hover:text-cyan-300 border border-white/[0.06] flex items-center justify-center transition-all"
                       title="Start Video Call"
                     >
                       <Video size={16} />
@@ -860,7 +909,7 @@ export default function Chat() {
                   className={`h-9 w-9 rounded-xl border flex items-center justify-center transition-all ${
                     showRightPane
                       ? 'bg-violet-500/20 text-lavender border-violet-400/40'
-                      : 'bg-white/[0.04] text-muted hover:text-lavender border-white/[0.06]'
+                      : 'bg-white/[0.04] text-muted hover:text-lavender active:bg-white/[0.08] border-white/[0.06]'
                   }`}
                   title="Conversation Details"
                 >
@@ -871,7 +920,8 @@ export default function Chat() {
 
             {/* WhatsApp Doodle Wallpaper & Message Stream */}
             <div
-              className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 relative"
+              ref={messagesContainerRef}
+              className="flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5 space-y-3 relative"
               style={{
                 backgroundImage: 'radial-gradient(circle at 50% 50%, rgba(124, 58, 237, 0.04) 0%, rgba(6, 182, 212, 0.02) 100%)',
               }}
@@ -912,8 +962,8 @@ export default function Chat() {
                   return (
                     <React.Fragment key={msg.id}>
                       {showDateDivider && (
-                        <div className="flex justify-center my-3">
-                          <span className="px-3 py-1 rounded-full bg-void-900/90 border border-white/[0.08] text-[11px] font-medium text-muted/90 shadow-sm">
+                        <div className="flex justify-center my-3 sticky top-2 z-10">
+                          <span className="px-3.5 py-1 rounded-full bg-void-900/90 border border-white/[0.08] text-[11px] font-medium text-muted shadow-md backdrop-blur-md">
                             {getMessageDateHeader(msg.createdAt)}
                           </span>
                         </div>
@@ -1002,10 +1052,10 @@ export default function Chat() {
 
                               {/* WhatsApp Message Bubble with Corner Styling */}
                               <div
-                                className={`px-4 py-2.5 rounded-2xl text-[13.5px] sm:text-sm leading-relaxed shadow-md transition-all ${
+                                className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-[13.5px] sm:text-sm leading-relaxed shadow-md transition-all ${
                                   isOwn
-                                    ? 'bg-gradient-to-br from-violet-600 via-indigo-600 to-fuchsia-700 text-white rounded-br-xs border border-violet-400/40 shadow-[0_4px_18px_rgba(124,58,237,0.35)]'
-                                    : 'bg-void-900/95 text-slate-100 rounded-bl-xs border border-white/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.3)]'
+                                    ? 'bg-gradient-to-br from-violet-600 via-indigo-600 to-fuchsia-700 text-white rounded-tr-xs border border-violet-400/40 shadow-[0_4px_18px_rgba(124,58,237,0.35)]'
+                                    : 'bg-void-900/95 text-slate-100 rounded-tl-xs border border-white/[0.08] shadow-[0_2px_10px_rgba(0,0,0,0.3)]'
                                 } ${msg.isDeleted ? 'italic opacity-60' : ''}`}
                               >
                                 {/* File Attachments */}
@@ -1046,32 +1096,35 @@ export default function Chat() {
                                             e.preventDefault()
                                             fileService.downloadFile(file.id, file.originalFilename, file.downloadUrl)
                                           }}
-                                          className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none group ${
+                                          className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none group max-w-sm ${
                                             isOwn
                                               ? 'bg-white/10 border-white/20 hover:bg-white/15 text-white'
-                                              : 'bg-void-950/70 border-white/[0.08] hover:border-violet-400/40 text-silver'
+                                              : 'bg-void-950/80 border-white/[0.08] hover:border-violet-400/40 text-silver'
                                           }`}
                                           title={`Download ${file.originalFilename}`}
                                         >
-                                          <FileText size={18} className={isOwn ? 'text-white' : 'text-cyan-400'} />
+                                          <div
+                                            className={`h-10 w-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                              isOwn ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                            }`}
+                                          >
+                                            <FileText size={20} />
+                                          </div>
                                           <div className="min-w-0 flex-1">
-                                            <p className="text-xs font-medium truncate group-hover:text-cyan-400 transition-colors">{file.originalFilename}</p>
-                                            <p className={`text-[10px] ${isOwn ? 'text-violet-200' : 'text-muted'}`}>
-                                              {(file.fileSize / 1024).toFixed(1)} KB
+                                            <p className="text-xs font-semibold truncate group-hover:text-cyan-300 transition-colors">
+                                              {file.originalFilename}
+                                            </p>
+                                            <p className={`text-[10px] mt-0.5 ${isOwn ? 'text-violet-200' : 'text-muted'}`}>
+                                              {(file.fileSize / 1024).toFixed(1)} KB • {file.mimeType.split('/')[1]?.toUpperCase() || 'PDF'}
                                             </p>
                                           </div>
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.preventDefault()
-                                              e.stopPropagation()
-                                              fileService.downloadFile(file.id, file.originalFilename, file.downloadUrl)
-                                            }}
-                                            className="p-1 rounded-lg hover:bg-white/10 transition-colors"
-                                            title="Download file"
+                                          <div
+                                            className={`h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105 ${
+                                              isOwn ? 'bg-white/20 text-white' : 'bg-white/[0.06] text-muted group-hover:text-cyan-300 border border-white/[0.08]'
+                                            }`}
                                           >
-                                            <Download size={14} className={isOwn ? 'text-white' : 'text-muted hover:text-lavender'} />
-                                          </button>
+                                            <Download size={15} />
+                                          </div>
                                         </div>
                                       )
                                     })}
@@ -1176,10 +1229,10 @@ export default function Chat() {
               </div>
             )}
 
-            {/* WhatsApp / Instagram Style Input Composer */}
+            {/* WhatsApp Style Input Composer - Anchored to Virtual Keyboard */}
             <form
               onSubmit={handleSendMessage}
-              className="flex-shrink-0 p-2.5 sm:p-3.5 border-t border-white/[0.08] bg-void-950/95 backdrop-blur-md flex items-center gap-2 sm:gap-3 z-10"
+              className="flex-shrink-0 p-2 sm:p-3.5 pb-[max(0.6rem,env(safe-area-inset-bottom))] border-t border-white/[0.08] bg-void-950/98 backdrop-blur-xl flex items-center gap-2 z-30"
             >
               <input
                 type="file"
@@ -1192,28 +1245,42 @@ export default function Chat() {
                 type="button"
                 whileTap={{ scale: 0.9 }}
                 onClick={() => fileInputRef.current?.click()}
-                className="h-10 w-10 rounded-full bg-white/[0.04] hover:bg-white/[0.08] text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all flex-shrink-0"
+                className="h-10 w-10 rounded-full bg-white/[0.04] hover:bg-white/[0.08] active:bg-white/[0.12] text-muted hover:text-lavender border border-white/[0.06] flex items-center justify-center transition-all flex-shrink-0"
                 title="Attach files"
               >
-                <Paperclip size={17} />
+                <Paperclip size={18} />
               </motion.button>
 
-              <div className="flex-1 relative flex items-center">
+              <div className="flex-1 relative flex items-center bg-white/[0.04] border border-white/[0.08] focus-within:border-violet-400/50 focus-within:shadow-[0_0_12px_rgba(168,85,247,0.2)] rounded-full px-3.5 py-1 transition-all">
+                <button
+                  type="button"
+                  className="text-muted hover:text-yellow-400 mr-2 p-0.5 transition-colors flex-shrink-0"
+                  title="Insert emoji"
+                  onClick={() => setInputText((prev) => prev + ' 😊')}
+                >
+                  <Smile size={18} />
+                </button>
                 <input
                   type="text"
                   placeholder={`Message ${selectedConversation.title}...`}
                   value={inputText}
                   onChange={handleInputChange}
-                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-full px-4 py-2.5 text-xs sm:text-sm text-silver placeholder:text-muted focus:outline-none focus:border-violet-400/50 focus:shadow-[0_0_12px_rgba(168,85,247,0.2)] transition-all"
+                  onFocus={() => {
+                    setTimeout(() => scrollToBottom(false), 50)
+                    setTimeout(() => scrollToBottom(false), 150)
+                    setTimeout(() => scrollToBottom(false), 300)
+                  }}
+                  className="w-full bg-transparent text-xs sm:text-sm text-silver placeholder:text-muted focus:outline-none py-1.5"
                 />
               </div>
 
               <motion.button
                 type="submit"
                 whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.92 }}
                 disabled={!inputText.trim() && selectedFiles.length === 0}
                 className="h-10 w-10 rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 text-void-950 font-semibold flex items-center justify-center shadow-glow hover:opacity-95 disabled:opacity-40 transition-all flex-shrink-0"
+                title="Send message"
               >
                 <Send size={16} />
               </motion.button>
@@ -1249,7 +1316,7 @@ export default function Chat() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowRightPane(false)}
-              className="lg:hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+              className="lg:hidden fixed inset-0 z-[55] bg-black/75 backdrop-blur-sm"
             />
 
             {/* Slide Drawer: fixed right on mobile, flex panel on desktop */}
@@ -1258,7 +1325,7 @@ export default function Chat() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-              className="fixed lg:relative right-0 top-0 bottom-0 z-50 lg:z-auto flex flex-col w-80 max-w-[85vw] h-full glass-panel border-l lg:border border-white/[0.08] overflow-hidden flex-shrink-0 bg-void-950/95 lg:bg-void-950/80 shadow-2xl lg:shadow-none"
+              className="fixed lg:relative right-0 top-0 bottom-0 z-[60] lg:z-auto flex flex-col w-80 max-w-[85vw] h-full glass-panel border-l lg:border border-white/[0.08] overflow-hidden flex-shrink-0 bg-void-950/98 lg:bg-void-950/80 shadow-2xl lg:shadow-none"
             >
               <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
                 <h3 className="font-display font-semibold text-sm text-silver">Details</h3>
