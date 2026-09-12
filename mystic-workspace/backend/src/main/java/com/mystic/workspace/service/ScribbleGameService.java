@@ -438,25 +438,30 @@ public class ScribbleGameService {
         RoomInstance room = getRoom(roomCode);
         if (room == null || text == null || text.isBlank()) return;
 
-        Long senderId = user != null ? user.getId() : (guestUserId != null ? guestUserId : 9999L);
-        String senderName = user != null ? user.getName() : (guestName != null ? guestName : "Player");
-        String senderTag = user != null ? user.getUserTag() : "guest";
+        Long tempSenderId = user != null ? user.getId() : (guestUserId != null ? guestUserId : 9999L);
+        String tempSenderName = user != null ? user.getName() : (guestName != null ? guestName : "Player");
+        String tempSenderTag = user != null ? user.getUserTag() : "guest";
 
         // Try to match with room player if user was null
         if (user == null && !room.getPlayers().isEmpty()) {
+            final Long lookupId = tempSenderId;
             Optional<PlayerState> match = room.getPlayers().stream()
-                    .filter(p -> p.getUserId().equals(senderId) || (guestName != null && guestName.equalsIgnoreCase(p.getName())))
+                    .filter(p -> p.getUserId().equals(lookupId) || (guestName != null && guestName.equalsIgnoreCase(p.getName())))
                     .findFirst();
             if (match.isPresent()) {
-                senderId = match.get().getUserId();
-                senderName = match.get().getName();
-                senderTag = match.get().getUserTag();
+                tempSenderId = match.get().getUserId();
+                tempSenderName = match.get().getName();
+                tempSenderTag = match.get().getUserTag();
             } else if (room.getPlayers().size() == 1) {
-                senderId = room.getPlayers().get(0).getUserId();
-                senderName = room.getPlayers().get(0).getName();
-                senderTag = room.getPlayers().get(0).getUserTag();
+                tempSenderId = room.getPlayers().get(0).getUserId();
+                tempSenderName = room.getPlayers().get(0).getName();
+                tempSenderTag = room.getPlayers().get(0).getUserTag();
             }
         }
+
+        final Long senderId = tempSenderId;
+        final String senderName = tempSenderName;
+        final String senderTag = tempSenderTag;
 
         String cleanText = text.trim();
 
