@@ -58,7 +58,12 @@ export default function ScribbleRoomPage() {
     Boolean(user?.name && roomState?.hostName && user.name.trim().toLowerCase() === roomState.hostName.trim().toLowerCase()) ||
     Boolean(user?.name && roomState?.players?.[0] && user.name.trim().toLowerCase() === roomState.players[0].name.trim().toLowerCase()) ||
     Boolean(roomState?.players?.length === 1)
-  const isDrawer = roomState?.currentDrawerId === effectiveUserId
+
+  const isDrawer =
+    roomState?.currentDrawerId === effectiveUserId ||
+    Boolean(roomState?.players?.length === 1) ||
+    Boolean(user?.name && roomState?.currentDrawerName && user.name.trim().toLowerCase().includes(roomState.currentDrawerName.trim().toLowerCase())) ||
+    Boolean(user?.name && roomState?.currentDrawerName && roomState.currentDrawerName.trim().toLowerCase().includes(user.name.trim().toLowerCase()))
 
   // Check if current user already guessed this turn
   const currentUserPlayer = roomState?.players.find((p) => p.userId === effectiveUserId)
@@ -67,6 +72,9 @@ export default function ScribbleRoomPage() {
   // 1. Initial Room Data & Snapshot Fetch
   useEffect(() => {
     if (!roomCode) return
+
+    const token = localStorage.getItem('mystic_token') || ''
+    websocketService.connect(token)
 
     const loadRoom = async () => {
       try {
