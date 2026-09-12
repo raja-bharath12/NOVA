@@ -666,6 +666,32 @@ class WebSocketService {
     }
   }
 
+  sendScribbleRestart(roomCode: string) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toUpperCase()
+    try {
+      this.client.publish({
+        destination: `/app/scribble/${clean}/restart`,
+        body: JSON.stringify({}),
+      })
+    } catch (err) {
+      console.warn('Failed to publish scribble restart', err)
+    }
+  }
+
+  sendScribbleEndGame(roomCode: string) {
+    if (!this.client || !this.connected) return
+    const clean = roomCode.trim().toUpperCase()
+    try {
+      this.client.publish({
+        destination: `/app/scribble/${clean}/end-game`,
+        body: JSON.stringify({}),
+      })
+    } catch (err) {
+      console.warn('Failed to publish scribble end game', err)
+    }
+  }
+
   sendScribbleLeave(roomCode: string) {
     if (!this.client || !this.connected) return
     const clean = roomCode.trim().toUpperCase()

@@ -38,14 +38,16 @@ public class ScribbleGameService {
         
         // Active turn details
         @Getter private PlayerState currentDrawer;
+        @Getter private Long previousDrawerId;
         @Getter private WordOption currentWord;
         @Getter private List<WordOption> currentWordChoices = new ArrayList<>();
-        @Getter private int timeRemaining = 80;
-        @Getter private int totalTurnSeconds = 80;
+        @Getter private int timeRemaining = 30;
+        @Getter private int totalTurnSeconds = 30;
         @Getter private String lastRevealedWord = "";
         @Getter private final Set<Long> solvedPlayerIds = ConcurrentHashMap.newKeySet();
+        @Getter private final Map<Long, Integer> turnGuessOrder = new ConcurrentHashMap<>();
+        @Getter private final Map<Long, Integer> turnGuessTimeRemaining = new ConcurrentHashMap<>();
         @Getter private final Set<Integer> revealedIndices = ConcurrentHashMap.newKeySet();
-        @Getter private boolean firstGuessWithin30Sec = false;
         @Getter private long turnStartTimeMs = 0;
 
         private ScheduledFuture<?> activeTimerTask;
@@ -57,7 +59,7 @@ public class ScribbleGameService {
             this.hostName = hostName;
             this.settings = settings != null ? settings : RoomSettings.builder()
                     .roundCount(3)
-                    .turnDurationSeconds(80)
+                    .turnDurationSeconds(30)
                     .maxPlayers(12)
                     .customWordsOnly(false)
                     .isPublic(true)
@@ -125,7 +127,7 @@ public class ScribbleGameService {
         String roomCode = generateRoomCode();
         RoomSettings settings = RoomSettings.builder()
                 .roundCount(req.getRoundCount() != null ? req.getRoundCount() : 3)
-                .turnDurationSeconds(req.getTurnDurationSeconds() != null ? req.getTurnDurationSeconds() : 80)
+                .turnDurationSeconds(req.getTurnDurationSeconds() != null ? req.getTurnDurationSeconds() : 30)
                 .maxPlayers(req.getMaxPlayers() != null ? req.getMaxPlayers() : 12)
                 .isPublic(req.getIsPublic() != null ? req.getIsPublic() : true)
                 .build();
@@ -249,13 +251,17 @@ public class ScribbleGameService {
                 nextHost.setHost(true);
                 room.hostId = nextHost.getUserId();
                 room.hostName = nextHost.getName();
-                broadcastSystemChat(room, nextHost.getName() + " is now the room host!", ChatMessage.MsgType.SYSTEM);
+                broadcastSystemChat(room, "👑 " + nextHost.getName() + " is now the host.", ChatMessage.MsgType.SYSTEM);
             }
 
-            // If current drawer left, advance turn
+            // If current drawer left, advance turn safely
             if (room.getCurrentDrawer() != null && room.getCurrentDrawer().getUserId().equals(userId)) {
-                broadcastSystemChat(room, "The drawer left the match. Advancing turn...", ChatMessage.MsgType.SYSTEM);
-                advanceTurn(room);
+                broadcastSystemChat(room, "🎨 Drawer disconnected. Moving to next turn...", ChatMessage.MsgType.SYSTEM);
+                if (room.getPhase() == GamePhase.WORD_SELECTION) {
+                    startTurn(room);
+                } else {
+                    endTurn(room, "Drawer disconnected");
+                }
             }
 
             // If room is empty, clean up after 5 minutes
@@ -289,6 +295,7 @@ public class ScribbleGameService {
         room.phase = GamePhase.WORD_SELECTION;
         room.currentRound = 1;
         room.currentTurnIndex = 0;
+        room.previousDrawerId = null;
         room.getPlayers().forEach(p -> {
             p.setScore(0);
             p.setRoundScore(0);
@@ -298,7 +305,49 @@ public class ScribbleGameService {
     }
 
     /**
+     * Host restarts game back to lobby.
+     */
+    public synchronized void restartGame(String roomCode, Long hostId) {
+        RoomInstance room = getRoom(roomCode);
+        if (room == null) return;
+        room.stopTimer();
+        room.phase = GamePhase.LOBBY;
+        room.currentRound = 1;
+        room.currentTurnIndex = 0;
+        room.currentDrawer = null;
+        room.previousDrawerId = null;
+        room.currentWord = null;
+        room.lastRevealedWord = "";
+        room.currentCanvasActions.clear();
+        room.solvedPlayerIds.clear();
+        room.turnGuessOrder.clear();
+        room.turnGuessTimeRemaining.clear();
+        room.getPlayers().forEach(p -> {
+            p.setScore(0);
+            p.setRoundScore(0);
+            p.setDrawing(false);
+            p.setHasGuessed(false);
+        });
+        broadcastRoomState(room);
+        broadcastCanvasAction(room, DrawAction.builder().type(DrawAction.Type.CLEAR).build());
+        broadcastSystemChat(room, "🔄 Game returned to lobby for a new match!", ChatMessage.MsgType.SYSTEM);
+    }
+
+    /**
+     * Host ends game for everyone.
+     */
+    public synchronized void endGame(String roomCode, Long hostId) {
+        RoomInstance room = getRoom(roomCode);
+        if (room == null) return;
+        room.stopTimer();
+        room.phase = GamePhase.GAME_OVER;
+        broadcastRoomState(room);
+        broadcastSystemChat(room, "🛑 The host ended this game.", ChatMessage.MsgType.SYSTEM);
+    }
+
+    /**
      * Initiates word selection phase for current turn.
+     * Selects a random available player (excluding previous drawer if possible).
      */
     private synchronized void startTurn(RoomInstance room) {
         if (room.getPlayers().isEmpty()) return;
@@ -306,13 +355,14 @@ public class ScribbleGameService {
         // Reset turn state
         room.currentCanvasActions.clear();
         room.solvedPlayerIds.clear();
+        room.turnGuessOrder.clear();
+        room.turnGuessTimeRemaining.clear();
         room.revealedIndices.clear();
-        room.firstGuessWithin30Sec = false;
         room.phase = GamePhase.WORD_SELECTION;
-        room.timeRemaining = 15; // 15 seconds to choose word
-        room.totalTurnSeconds = 15;
+        room.timeRemaining = 10; // Exactly 10 seconds for word selection
+        room.totalTurnSeconds = 10;
 
-        // Pick active connected drawer
+        // Pick random available connected drawer (prevent immediate consecutive repeat)
         List<PlayerState> activePlayers = room.getPlayers().stream()
                 .filter(PlayerState::isConnected)
                 .toList();
@@ -320,10 +370,17 @@ public class ScribbleGameService {
             activePlayers = room.getPlayers();
         }
 
-        int drawerIndex = room.currentTurnIndex % activePlayers.size();
-        PlayerState drawer = activePlayers.get(drawerIndex);
+        List<PlayerState> eligibleDrawers = activePlayers.stream()
+                .filter(p -> room.previousDrawerId == null || !p.getUserId().equals(room.previousDrawerId))
+                .toList();
+        if (eligibleDrawers.isEmpty()) {
+            eligibleDrawers = activePlayers;
+        }
 
+        PlayerState drawer = eligibleDrawers.get(random.nextInt(eligibleDrawers.size()));
+        room.previousDrawerId = drawer.getUserId();
         room.currentDrawer = drawer;
+
         room.getPlayers().forEach(p -> {
             p.setDrawing(p.getUserId().equals(drawer.getUserId()));
             p.setHasGuessed(false);
@@ -337,20 +394,20 @@ public class ScribbleGameService {
         broadcastRoomState(room);
         broadcastCanvasAction(room, DrawAction.builder().type(DrawAction.Type.CLEAR).build());
 
-        // Send private word choices to drawer
+        // Send private word choices to drawer only
         messagingTemplate.convertAndSend(
                 "/topic/scribble." + room.getRoomCode() + ".private." + drawer.getUserId(),
                 room.toDto(drawer.getUserId())
         );
 
-        broadcastSystemChat(room, "✏️ " + drawer.getName() + " is choosing a word...", ChatMessage.MsgType.DRAWER_PICKED);
+        broadcastSystemChat(room, "🎨 " + drawer.getName() + " is choosing a word...", ChatMessage.MsgType.DRAWER_PICKED);
 
-        // Word selection countdown
+        // 10-second Word selection countdown
         room.setTimerTask(scheduler.scheduleAtFixedRate(() -> {
             synchronized (room) {
                 room.timeRemaining--;
                 if (room.timeRemaining <= 0) {
-                    // Auto-select random word if drawer didn't choose
+                    // Auto-select random word after 10 seconds
                     if (room.currentWord == null && !room.currentWordChoices.isEmpty()) {
                         WordOption autoWord = room.currentWordChoices.get(random.nextInt(room.currentWordChoices.size()));
                         selectWord(room.getRoomCode(), drawer.getUserId(), autoWord.getWord());
@@ -382,27 +439,27 @@ public class ScribbleGameService {
                 .hint("Custom drawing word")
                 .build());
 
-        // Transition to DRAWING phase
+        // Transition to DRAWING phase: exactly 30 seconds guessing time
         room.phase = GamePhase.DRAWING;
-        room.totalTurnSeconds = room.getSettings().getTurnDurationSeconds();
-        room.timeRemaining = room.totalTurnSeconds;
+        room.totalTurnSeconds = 30;
+        room.timeRemaining = 30;
         room.turnStartTimeMs = System.currentTimeMillis();
 
         broadcastRoomState(room);
         broadcastSystemChat(room, "🎨 " + room.getCurrentDrawer().getName() + " is now drawing!", ChatMessage.MsgType.SYSTEM);
 
-        // Drawing countdown loop
+        // Drawing countdown loop (30s)
         room.setTimerTask(scheduler.scheduleAtFixedRate(() -> {
             synchronized (room) {
                 room.timeRemaining--;
 
-                // Timed hints at 50% and 25% remaining time
+                // Timed hints at 15s and 8s remaining
                 String raw = room.getCurrentWord().getWord();
                 int len = raw.length();
-                if (room.timeRemaining == (int)(room.totalTurnSeconds * 0.5) && len > 3) {
+                if (room.timeRemaining == 15 && len > 3) {
                     revealRandomLetter(room);
                     broadcastRoomState(room);
-                } else if (room.timeRemaining == (int)(room.totalTurnSeconds * 0.25) && len > 5) {
+                } else if (room.timeRemaining == 8 && len > 5) {
                     revealRandomLetter(room);
                     broadcastRoomState(room);
                 }
@@ -433,6 +490,9 @@ public class ScribbleGameService {
 
     /**
      * Submit a guess or message in chat.
+     * Enforces STRICT EXACT-MATCH checking normalized to trimmed lowercase.
+     * NO fuzzy matching, NO includes, NO partial matches.
+     * Correct guess is NEVER displayed as a chat message.
      */
     public synchronized void handleGuess(String roomCode, User user, String text, Long guestUserId, String guestName) {
         RoomInstance room = getRoom(roomCode);
@@ -465,8 +525,8 @@ public class ScribbleGameService {
 
         String cleanText = text.trim();
 
-        // If not in drawing phase or sender is active drawer, send normal chat
-        if (room.getPhase() != GamePhase.DRAWING || (room.getCurrentDrawer() != null && room.getCurrentDrawer().getUserId().equals(senderId))) {
+        // If not in drawing phase, timer expired, or sender is active drawer, send normal chat
+        if (room.getPhase() != GamePhase.DRAWING || room.getTimeRemaining() <= 0 || (room.getCurrentDrawer() != null && room.getCurrentDrawer().getUserId().equals(senderId))) {
             broadcastChat(room, ChatMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .type(ChatMessage.MsgType.CHAT)
@@ -479,93 +539,55 @@ public class ScribbleGameService {
             return;
         }
 
-        // If player already guessed correctly this turn, do not reveal answer to remaining guessers
+        // If player already guessed correctly this turn, reject and do not broadcast
         if (room.getSolvedPlayerIds().contains(senderId)) {
-            // Private chat visible only to other solved players and drawer
-            broadcastChat(room, ChatMessage.builder()
-                    .id(UUID.randomUUID().toString())
-                    .type(ChatMessage.MsgType.CHAT)
-                    .senderId(senderId)
-                    .senderName(senderName)
-                    .senderTag(senderTag)
-                    .content(cleanText)
-                    .timestamp(System.currentTimeMillis())
-                    .isPrivate(true)
-                    .build());
             return;
         }
 
         String targetWord = room.getCurrentWord() != null ? room.getCurrentWord().getWord() : "";
-        int levDistance = calculateLevenshtein(cleanText.toUpperCase(), targetWord.toUpperCase());
+        String normGuess = cleanText.toLowerCase();
+        String normTarget = targetWord.trim().toLowerCase();
 
-        // 1. EXACT MATCH!
-        if (levDistance == 0) {
+        // EXACT MATCH CHECKING ONLY (NO includes, NO startsWith, NO fuzzy)
+        boolean isExactMatch = !normTarget.isEmpty() && normGuess.equals(normTarget);
+
+        if (isExactMatch) {
+            // Immediately mark as solved & record order/time
             room.getSolvedPlayerIds().add(senderId);
-            long elapsedSeconds = (System.currentTimeMillis() - room.turnStartTimeMs) / 1000;
-            if (elapsedSeconds <= 30) {
-                room.firstGuessWithin30Sec = true;
-            }
+            int guessOrder = room.getSolvedPlayerIds().size();
+            room.turnGuessOrder.put(senderId, guessOrder);
+            room.turnGuessTimeRemaining.put(senderId, room.getTimeRemaining());
 
-            // Calculate guesser score: Base 100 + (remaining / total) * 400
-            int guesserPoints = 100 + (int) (((double) room.getTimeRemaining() / room.getTotalTurnSeconds()) * 400);
-
-            // Update player state
+            // Lock guesser
             room.getPlayers().stream().filter(p -> p.getUserId().equals(senderId)).findFirst().ifPresent(p -> {
-                p.setScore(p.getScore() + guesserPoints);
-                p.setRoundScore(guesserPoints);
                 p.setHasGuessed(true);
             });
 
-            // Update drawer score: (solved / eligible) * 400 + (bonus if < 30s)
-            int eligibleGuessers = Math.max(1, room.getPlayers().size() - 1);
-            int solvedCount = room.getSolvedPlayerIds().size();
-            int drawerBounty = (int) (((double) solvedCount / eligibleGuessers) * 400) + (room.isFirstGuessWithin30Sec() ? 50 : 0);
-
-            if (room.getCurrentDrawer() != null) {
-                room.getCurrentDrawer().setRoundScore(drawerBounty);
-            }
-
-            // Intercept message, broadcast celebratory green banner!
+            // Immediately broadcast celebratory system announcement (do NOT reveal raw answer!)
             broadcastChat(room, ChatMessage.builder()
                     .id(UUID.randomUUID().toString())
                     .type(ChatMessage.MsgType.CORRECT_GUESS)
                     .senderId(senderId)
                     .senderName(senderName)
                     .senderTag(senderTag)
-                    .content(senderName + " guessed the word!")
-                    .pointsEarned(guesserPoints)
+                    .content("🎉 " + senderName + " guessed the word correctly!")
                     .timestamp(System.currentTimeMillis())
                     .build());
 
             broadcastRoomState(room);
 
-            // If ALL eligible guessers have solved, end turn immediately!
-            if (solvedCount >= eligibleGuessers) {
-                endTurn(room, "Everyone guessed the word!");
+            // Check if all non-drawer active players have guessed correctly
+            long eligibleGuessers = room.getPlayers().stream()
+                    .filter(p -> !p.getUserId().equals(room.getCurrentDrawer().getUserId()) && p.isConnected())
+                    .count();
+
+            if (eligibleGuessers > 0 && room.getSolvedPlayerIds().size() >= eligibleGuessers) {
+                endTurn(room, "All players guessed correctly!");
             }
             return;
         }
 
-        // 2. CLOSE GUESS! (Levenshtein <= 1, or <= 2 for long words)
-        boolean isClose = (targetWord.length() <= 4 && levDistance == 1) || (targetWord.length() > 4 && levDistance <= 2);
-        if (isClose) {
-            // Send private hint to guesser
-            messagingTemplate.convertAndSend(
-                    "/topic/scribble." + room.getRoomCode() + ".private." + senderId,
-                    ChatMessage.builder()
-                            .id(UUID.randomUUID().toString())
-                            .type(ChatMessage.MsgType.CLOSE_GUESS)
-                            .senderId(senderId)
-                            .senderName("NOVA Hint")
-                            .content("You are very close! ('" + cleanText + "')")
-                            .timestamp(System.currentTimeMillis())
-                            .isPrivate(true)
-                            .build()
-            );
-            return;
-        }
-
-        // 3. REGULAR GUESS MESSAGE
+        // WRONG GUESS -> Display normal chat message with player's display name
         broadcastChat(room, ChatMessage.builder()
                 .id(UUID.randomUUID().toString())
                 .type(ChatMessage.MsgType.CHAT)
@@ -601,22 +623,50 @@ public class ScribbleGameService {
     }
 
     /**
-     * Conclude active turn, show revealed word, update total drawer score, and advance.
+     * Conclude active turn:
+     * 1. Stop timer & drawing
+     * 2. Finalize round scores (applied only at turn completion)
+     * 3. Show revealed word & round results
+     * 4. Advance to next random drawer after 5 seconds
      */
     private synchronized void endTurn(RoomInstance room, String reason) {
         room.stopTimer();
         room.phase = GamePhase.ROUND_END;
         room.lastRevealedWord = room.getCurrentWord() != null ? room.getCurrentWord().getWord() : "";
 
-        // Finalize drawer points
-        if (room.getCurrentDrawer() != null && !room.getSolvedPlayerIds().isEmpty()) {
-            room.getCurrentDrawer().setScore(room.getCurrentDrawer().getScore() + room.getCurrentDrawer().getRoundScore());
+        long totalEligibleGuessers = room.getPlayers().stream()
+                .filter(p -> !p.getUserId().equals(room.getCurrentDrawer().getUserId()) && p.isConnected())
+                .count();
+        if (totalEligibleGuessers <= 0) totalEligibleGuessers = 1;
+
+        // Calculate and finalize guesser scores based on guess order & time
+        for (Long solvedId : room.getSolvedPlayerIds()) {
+            int order = room.turnGuessOrder.getOrDefault(solvedId, 1);
+            int timeLeft = room.turnGuessTimeRemaining.getOrDefault(solvedId, 0);
+
+            // 1st: 100, 2nd: 75, 3rd: 50, subsequent: 40 (+ time bonus up to 20)
+            int basePoints = order == 1 ? 100 : order == 2 ? 75 : order == 3 ? 50 : 40;
+            int timeBonus = (int) (((double) timeLeft / 30.0) * 20.0);
+            int totalGuesserPoints = basePoints + timeBonus;
+
+            room.getPlayers().stream().filter(p -> p.getUserId().equals(solvedId)).findFirst().ifPresent(p -> {
+                p.setRoundScore(totalGuesserPoints);
+                p.setScore(p.getScore() + totalGuesserPoints);
+            });
+        }
+
+        // Calculate and finalize drawer score based on how many guessed correctly
+        int solvedCount = room.getSolvedPlayerIds().size();
+        if (room.getCurrentDrawer() != null) {
+            int drawerPoints = solvedCount > 0 ? (int) (((double) solvedCount / totalEligibleGuessers) * 100.0) : 0;
+            room.getCurrentDrawer().setRoundScore(drawerPoints);
+            room.getCurrentDrawer().setScore(room.getCurrentDrawer().getScore() + drawerPoints);
         }
 
         broadcastRoomState(room);
-        broadcastSystemChat(room, "🔔 Turn Ended: The word was \"" + room.lastRevealedWord + "\"", ChatMessage.MsgType.SYSTEM);
+        broadcastSystemChat(room, "🔔 Drawing Complete! The word was \"" + room.lastRevealedWord + "\"", ChatMessage.MsgType.SYSTEM);
 
-        // 5-second round intermission before next turn
+        // 5-second round result intermission before next turn
         room.setTimerTask(scheduler.schedule(() -> advanceTurn(room), 5, TimeUnit.SECONDS));
     }
 
@@ -625,9 +675,9 @@ public class ScribbleGameService {
      */
     private synchronized void advanceTurn(RoomInstance room) {
         room.currentTurnIndex++;
-        int totalPlayers = Math.max(1, room.getPlayers().size());
+        int totalPlayers = Math.max(1, (int) room.getPlayers().stream().filter(PlayerState::isConnected).count());
 
-        // Check if round is complete (everyone has drawn once)
+        // Check if round is complete (everyone drawn once)
         if (room.currentTurnIndex % totalPlayers == 0) {
             room.currentRound++;
             if (room.currentRound > room.getSettings().getRoundCount()) {

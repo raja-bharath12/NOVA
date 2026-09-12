@@ -62,6 +62,18 @@ public class ScribbleWebSocketController {
         scribbleService.handleGuess(roomCode, user, payload.getText(), null, null);
     }
 
+    @MessageMapping("/scribble/{roomCode}/restart")
+    public void handleRestartGame(@DestinationVariable String roomCode, Principal principal) {
+        User user = resolveUser(principal);
+        scribbleService.restartGame(roomCode, user != null ? user.getId() : null);
+    }
+
+    @MessageMapping("/scribble/{roomCode}/end-game")
+    public void handleEndGame(@DestinationVariable String roomCode, Principal principal) {
+        User user = resolveUser(principal);
+        scribbleService.endGame(roomCode, user != null ? user.getId() : null);
+    }
+
     @MessageMapping("/scribble/{roomCode}/leave")
     public void handleLeave(@DestinationVariable String roomCode, Principal principal) {
         User user = resolveUser(principal);

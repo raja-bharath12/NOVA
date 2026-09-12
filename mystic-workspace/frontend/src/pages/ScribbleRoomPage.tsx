@@ -169,6 +169,21 @@ export default function ScribbleRoomPage() {
     navigate('/scribble')
   }
 
+  const [showEndGameConfirm, setShowEndGameConfirm] = useState(false)
+
+  const handleRestartGame = () => {
+    if (!roomCode || !isHost) return
+    websocketService.sendScribbleRestart(roomCode)
+    showToast('Match returned to lobby!', 'info')
+  }
+
+  const handleConfirmEndGame = () => {
+    if (!roomCode || !isHost) return
+    websocketService.sendScribbleEndGame(roomCode)
+    setShowEndGameConfirm(false)
+    showToast('Game ended by host.', 'info')
+  }
+
   const handleClear = () => {
     if (!roomCode || !isDrawer) return
     const clearAction: DrawAction = { type: 'CLEAR', timestamp: Date.now() }
@@ -197,17 +212,25 @@ export default function ScribbleRoomPage() {
   return (
     <div className="w-full flex flex-col space-y-3 pb-8 max-w-[1600px] mx-auto min-h-[calc(100dvh-5rem)]">
       {/* 1. TOP GAME STATUS BAR */}
-      <div className="w-full bg-[#13141f]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3 sm:p-4 shadow-xl flex flex-wrap items-center justify-between gap-3">
+      <div className="w-full bg-[#13141f]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-2.5 sm:p-4 shadow-xl flex flex-wrap items-center justify-between gap-2.5">
         {/* Round & Drawer Info */}
-        <div className="flex items-center gap-3">
-          <div className="px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold font-mono">
-            Round {roomState.currentRound} / {roomState.totalRounds}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-bold font-mono">
+            {roomState.phase === 'LOBBY' ? 'LOBBY' : `Turn ${roomState.currentTurnIndex + 1}`}
           </div>
 
-          <div className="hidden sm:block">
-            <span className="text-xs text-white/50 block">Active Drawer:</span>
+          <div>
+            <span className="text-[10px] sm:text-xs text-white/50 block leading-tight">Drawer:</span>
             <span className="text-xs sm:text-sm font-bold text-silver">
-              {roomState.currentDrawerName || 'Waiting in Lobby'}
+              {roomState.currentDrawerName ? (
+                isDrawer ? (
+                  <span className="text-purple-300">🎨 You</span>
+                ) : (
+                  <span>🎨 {roomState.currentDrawerName}</span>
+                )
+              ) : (
+                'Waiting in Lobby'
+              )}
             </span>
           </div>
         </div>
@@ -215,24 +238,23 @@ export default function ScribbleRoomPage() {
         {/* Word Clue Mask / Reveal Center */}
         <div className="flex-1 flex flex-col items-center justify-center px-2">
           {roomState.phase === 'LOBBY' ? (
-            <span className="text-xs sm:text-sm font-bold text-purple-300 uppercase tracking-widest">
-              Lobby Room • Waiting for Host
+            <span className="text-xs sm:text-sm font-bold text-purple-300 uppercase tracking-widest text-center">
+              Room: {roomState.roomCode}
             </span>
           ) : isDrawer ? (
             <div className="text-center">
-              <span className="text-sm sm:text-lg font-mono font-black text-purple-300 tracking-widest uppercase">
+              <span className="text-xs text-white/50 block font-semibold">Your Word:</span>
+              <span className="text-base sm:text-xl font-mono font-black text-purple-300 tracking-widest uppercase">
                 {roomState.maskedWord}
               </span>
-              {roomState.wordHint && (
-                <span className="text-[11px] text-white/50 block">({roomState.wordHint})</span>
-              )}
             </div>
           ) : (
             <div className="text-center">
+              <span className="text-xs text-white/40 block font-medium">Guess the word:</span>
               <span className="text-base sm:text-2xl font-mono font-black text-white tracking-[0.25em]">
                 {roomState.maskedWord}
               </span>
-              <span className="text-[10px] text-white/40 block mt-0.5">
+              <span className="text-[10px] text-white/40 block">
                 {roomState.wordLength} letters
               </span>
             </div>
@@ -241,32 +263,51 @@ export default function ScribbleRoomPage() {
 
         {/* Turn Timer, Live Score & Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* User Score Badge (Always Visible on Mobile & Desktop) */}
-          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold font-mono shadow-sm">
+          {/* User Score Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold font-mono shadow-sm">
             <Trophy size={14} className="text-amber-400" />
             <span>{currentUserPlayer?.score || 0} PTS</span>
           </div>
 
           {roomState.phase !== 'LOBBY' && (
-            <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-200 border border-purple-500/30 text-xs font-mono font-bold">
-              <Clock size={14} className="animate-pulse text-purple-400" />
-              <span>00:{roomState.timeRemaining.toString().padStart(2, '0')}</span>
+            <div
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-xs font-mono font-bold ${
+                roomState.timeRemaining <= 5
+                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
+                  : roomState.timeRemaining <= 10
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-purple-500/20 text-purple-200 border-purple-500/30'
+              }`}
+            >
+              <Clock size={14} className={roomState.timeRemaining <= 5 ? 'text-rose-400' : 'text-purple-400'} />
+              <span>{roomState.timeRemaining}s</span>
             </div>
           )}
 
           <button
             onClick={handleCopyInvite}
             title="Copy Invite Link"
-            className="p-2 sm:px-3 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 border border-white/5 transition-all active:scale-95"
+            className="p-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 border border-white/5 transition-all active:scale-95"
           >
             <Share2 size={14} />
             <span className="hidden md:inline">Invite</span>
           </button>
 
+          {isHost && roomState.phase !== 'LOBBY' && (
+            <button
+              onClick={() => setShowEndGameConfirm(true)}
+              title="End Match for Everyone"
+              className="p-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              <Flag size={14} />
+              <span className="hidden md:inline">End Game</span>
+            </button>
+          )}
+
           <button
             onClick={handleLeave}
             title="Leave Match"
-            className="p-2 sm:px-3 sm:py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95"
+            className="p-1.5 sm:px-3 sm:py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95"
           >
             <LogOut size={14} />
             <span className="hidden md:inline">Leave</span>
@@ -294,8 +335,7 @@ export default function ScribbleRoomPage() {
               </div>
 
               <p className="text-xs text-white/60 mb-6 max-w-xl leading-relaxed">
-                Invite other players to join using the room code or dynamic link. Once everyone is in
-                the room, the host can launch the match!
+                Invite friends with the room code or link. When ready, the host starts the game!
               </p>
 
               {/* Player Roster Grid */}
@@ -325,7 +365,6 @@ export default function ScribbleRoomPage() {
 
             {/* Host Start Match Button */}
             <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-              {/* Only visible on tablet/desktop, hidden on mobile */}
               <div className="hidden md:flex items-center gap-2 text-xs text-white/50">
                 <Copy size={14} />
                 <span className="truncate max-w-[280px]">Link: {window.location.origin}/scribble/room/{roomState.roomCode}</span>
@@ -338,20 +377,11 @@ export default function ScribbleRoomPage() {
                     className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-500 hover:from-purple-500 hover:to-indigo-400 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2.5 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   >
                     <Play size={18} className="fill-current" />
-                    <span>Start Game Match</span>
+                    <span>START GAME</span>
                   </button>
                 ) : (
-                  <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <div className="text-xs text-purple-300 font-semibold animate-pulse text-center sm:text-left">
-                      Waiting for host ({roomState.hostName || 'Host'}) to start match...
-                    </div>
-                    <button
-                      onClick={handleStartGame}
-                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/40 text-purple-200 font-semibold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
-                    >
-                      <Play size={14} className="fill-current" />
-                      <span>Start Match Now</span>
-                    </button>
+                  <div className="text-xs text-purple-300 font-semibold animate-pulse text-center sm:text-left py-2">
+                    Waiting for host ({roomState.hostName || 'Host'}) to start game...
                   </div>
                 )}
               </div>
@@ -359,26 +389,28 @@ export default function ScribbleRoomPage() {
           </div>
 
           {/* Right: Lobby Chat Feed */}
-          <div className="h-[450px] lg:h-auto">
+          <div className="h-[400px] lg:h-auto">
             <ScribbleChat
               messages={messages}
               onSendMessage={handleSendMessage}
               hasGuessed={false}
               isDrawer={false}
+              currentUserId={effectiveUserId}
+              currentUserName={user?.name}
             />
           </div>
         </div>
       ) : (
-        /* ACTIVE GAME ARENA */
+        /* ACTIVE GAME ARENA - UNIFIED SINGLE CANVAS ARCHITECTURE */
         <div className="w-full flex-1 flex flex-col space-y-3">
-          {/* Inline Word Selection Banner (For Drawer during WORD_SELECTION) */}
+          {/* Inline Word Selection Banner (For Drawer during 10s WORD_SELECTION) */}
           {roomState.phase === 'WORD_SELECTION' && isDrawer && (
-            <div className="w-full bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-purple-900/60 border border-purple-500/30 rounded-2xl p-3 sm:p-4 backdrop-blur-xl shadow-glow animate-pulse">
+            <div className="w-full bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-purple-900/60 border border-purple-500/30 rounded-2xl p-3 sm:p-4 backdrop-blur-xl shadow-glow">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-amber-300 animate-spin" />
                   <span className="text-xs sm:text-sm font-bold text-white">
-                    Pick a word to start drawing (00:{roomState.timeRemaining.toString().padStart(2, '0')}):
+                    CHOOSE YOUR WORD ({roomState.timeRemaining}s):
                   </span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-center">
@@ -390,7 +422,7 @@ export default function ScribbleRoomPage() {
                     <button
                       key={w.word}
                       onClick={() => handleSelectWord(w.word)}
-                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5 border border-purple-400/40"
+                      className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-sm sm:text-base shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-2 border border-purple-400/40"
                     >
                       <span>{w.word}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 uppercase font-mono text-purple-200">
@@ -403,9 +435,16 @@ export default function ScribbleRoomPage() {
             </div>
           )}
 
-          {/* Desktop 3-Column / Mobile Responsive Grid */}
-          <div className="w-full grid lg:grid-cols-12 gap-3 min-h-[550px]">
-            {/* 1. Left Column on Desktop: Leaderboard (Hidden on Mobile unless tab selected) */}
+          {/* Announcement if another player is choosing */}
+          {roomState.phase === 'WORD_SELECTION' && !isDrawer && (
+            <div className="w-full py-2.5 px-4 rounded-xl bg-purple-500/10 border border-purple-500/20 text-center text-xs font-semibold text-purple-300 animate-pulse">
+              🎨 {roomState.currentDrawerName || 'Drawer'} is choosing a word... ({roomState.timeRemaining}s)
+            </div>
+          )}
+
+          {/* Responsive Layout Grid (Desktop 3-Column / Mobile Single Clean Stack) */}
+          <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[500px]">
+            {/* 1. Desktop Left Column: Leaderboard / Player List */}
             <div className="hidden lg:block lg:col-span-3 h-auto">
               <ScribbleLeaderboard
                 players={roomState.players}
@@ -413,9 +452,9 @@ export default function ScribbleRoomPage() {
               />
             </div>
 
-            {/* 2. Center Column: Interactive Canvas & Toolbar (Always Prominent at Top on Mobile) */}
-            <div className="lg:col-span-6 flex flex-col gap-2 min-h-[360px] sm:min-h-[440px] lg:min-h-[520px]">
-              <div className="flex-1 relative w-full h-full min-h-[300px] sm:min-h-[400px]">
+            {/* 2. Center Column: THE ONLY Interactive Canvas (Zero duplication, zero conflicts) */}
+            <div className="lg:col-span-6 flex flex-col gap-2 min-h-[320px] sm:min-h-[420px] lg:min-h-[520px]">
+              <div className="flex-1 relative w-full h-[280px] sm:h-[380px] lg:h-full">
                 <ScribbleCanvas
                   isDrawer={isDrawer && roomState.phase === 'DRAWING'}
                   currentTool={currentTool}
@@ -427,8 +466,8 @@ export default function ScribbleRoomPage() {
                 />
               </div>
 
-              {/* Drawer Tools (Paintbrush, Pencil, Eraser, Flood Fill Bucket, Colors, Sizes) */}
-              {(isDrawer || roomState.players.length === 1) && (
+              {/* Drawer Tools (Displayed if Drawer during DRAWING) */}
+              {(isDrawer || roomState.players.length === 1) && roomState.phase === 'DRAWING' && (
                 <div className="w-full">
                   <ScribbleToolbar
                     currentTool={currentTool}
@@ -442,120 +481,33 @@ export default function ScribbleRoomPage() {
                   />
                 </div>
               )}
+
+              {/* Mobile Quick Scores Bar (Visible on Mobile under canvas) */}
+              <div className="block lg:hidden flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs">
+                <span className="text-white/60 font-semibold flex items-center gap-1">
+                  <Trophy size={12} className="text-amber-400" /> Leaderboard:
+                </span>
+                <div className="flex items-center gap-2.5 overflow-x-auto custom-scrollbar">
+                  {roomState.players.map((p, idx) => (
+                    <span key={p.userId} className="font-mono text-[11px] text-white/80 whitespace-nowrap">
+                      #{idx + 1} {p.name}: <b className="text-purple-300">{p.score}p</b>
+                      {p.hasGuessed ? <span className="text-emerald-400 ml-1">✓</span> : ''}
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {/* 3. Right Column on Desktop: Live Chat & Guess Feed */}
-            <div className="hidden lg:block lg:col-span-3 h-auto">
+            {/* 3. Right Column on Desktop / Mobile Bottom Section: Live Chat & Guess Feed */}
+            <div className="col-span-1 lg:col-span-3 h-[300px] sm:h-[360px] lg:h-auto flex flex-col">
               <ScribbleChat
                 messages={messages}
                 onSendMessage={handleSendMessage}
                 hasGuessed={hasGuessed}
                 isDrawer={isDrawer && roomState.phase === 'DRAWING'}
+                currentUserId={effectiveUserId}
+                currentUserName={user?.name}
               />
-            </div>
-          </div>
-
-          {/* Mobile Screen: Whiteboard Canvas + Keyboard-Ready Guess Bar */}
-          <div className="block lg:hidden w-full flex flex-col space-y-2">
-            {/* Whiteboard Canvas */}
-            <div className="w-full h-[250px] sm:h-[320px] relative">
-              <ScribbleCanvas
-                isDrawer={isDrawer && roomState.phase === 'DRAWING'}
-                currentTool={currentTool}
-                currentColor={currentColor}
-                currentWidth={currentWidth}
-                onEmitDrawAction={handleEmitDrawAction}
-                incomingAction={incomingAction}
-                initialActions={initialActions}
-              />
-            </div>
-
-            {/* Drawer Tools (If Drawer) */}
-            {(isDrawer || roomState.players.length === 1) && roomState.phase === 'DRAWING' && (
-              <div className="w-full">
-                <ScribbleToolbar
-                  currentTool={currentTool}
-                  setTool={setCurrentTool}
-                  currentColor={currentColor}
-                  setColor={setCurrentColor}
-                  currentWidth={currentWidth}
-                  setWidth={setCurrentWidth}
-                  onClear={handleClear}
-                  onUndo={handleUndo}
-                />
-              </div>
-            )}
-
-            {/* Mobile Guess Input & Recent Messages (Whiteboard stays in full view while typing!) */}
-            <div className="w-full bg-[#13141f]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-2.5 shadow-xl flex flex-col gap-2">
-              {/* Mini Recent Guesses Strip */}
-              <div className="max-h-[65px] overflow-y-auto space-y-1 text-xs px-1 custom-scrollbar">
-                {messages.length === 0 ? (
-                  <span className="text-white/40 text-[11px] italic">Live guesses and hints will appear here...</span>
-                ) : (
-                  messages.slice(-4).map((m) => (
-                    <div key={m.id} className="truncate">
-                      {m.type === 'CORRECT_GUESS' ? (
-                        <span className="text-emerald-400 font-bold">🎉 {m.content} (+{m.pointsEarned} pts)</span>
-                      ) : m.type === 'CLOSE_GUESS' ? (
-                        <span className="text-amber-400 font-semibold animate-pulse">⚠️ {m.content}</span>
-                      ) : (
-                        <span className="text-white/80"><b className="text-silver mr-1">{m.senderName}:</b>{m.content}</span>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Mobile Typing Form */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  const form = e.currentTarget
-                  const inputEl = form.elements.namedItem('mobileGuess') as HTMLInputElement
-                  if (inputEl && inputEl.value.trim()) {
-                    handleSendMessage(inputEl.value.trim())
-                    inputEl.value = ''
-                  }
-                }}
-                className="flex gap-2 w-full"
-              >
-                <input
-                  name="mobileGuess"
-                  type="text"
-                  autoComplete="off"
-                  disabled={hasGuessed || (isDrawer && roomState.phase === 'DRAWING')}
-                  placeholder={
-                    isDrawer && roomState.phase === 'DRAWING'
-                      ? 'You are drawing! Chat disabled'
-                      : hasGuessed
-                      ? '✓ Correct! You solved it'
-                      : 'Type your answer here...'
-                  }
-                  className="flex-1 bg-white/5 border border-white/10 focus:border-purple-500 rounded-xl px-3 py-2.5 text-xs text-white placeholder-white/40 focus:outline-none transition-all disabled:opacity-50"
-                />
-                <button
-                  type="submit"
-                  disabled={hasGuessed || (isDrawer && roomState.phase === 'DRAWING')}
-                  className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 shadow-glow"
-                >
-                  Send
-                </button>
-              </form>
-            </div>
-
-            {/* Mobile Live Scores Bar */}
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 text-xs">
-              <span className="text-white/60 font-semibold flex items-center gap-1">
-                <Trophy size={12} className="text-amber-400" /> Scores:
-              </span>
-              <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar">
-                {roomState.players.map((p, idx) => (
-                  <span key={p.userId} className="font-mono text-[11px] text-white/80 whitespace-nowrap">
-                    #{idx + 1} {p.name}: <b className="text-purple-300">{p.score}p</b>
-                  </span>
-                ))}
-              </div>
             </div>
           </div>
         </div>
@@ -575,8 +527,34 @@ export default function ScribbleRoomPage() {
         phase={roomState.phase}
         revealedWord={roomState.lastRevealedWord || ''}
         players={roomState.players}
-        onPlayAgain={isHost ? handleStartGame : undefined}
+        onPlayAgain={isHost ? handleRestartGame : undefined}
       />
+
+      {/* Host End Game Confirmation Modal */}
+      {showEndGameConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-sm bg-[#141523] border border-rose-500/30 rounded-2xl p-6 shadow-2xl text-center">
+            <h3 className="text-lg font-bold text-white mb-2">End Game?</h3>
+            <p className="text-xs text-white/60 mb-6 leading-relaxed">
+              This will end the game match for everyone in the room.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setShowEndGameConfirm(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white/80 text-xs font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmEndGame}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-950/40"
+              >
+                End Game
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

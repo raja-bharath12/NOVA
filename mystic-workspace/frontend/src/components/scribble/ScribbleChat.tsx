@@ -7,6 +7,8 @@ interface ScribbleChatProps {
   onSendMessage: (text: string) => void
   hasGuessed: boolean
   isDrawer: boolean
+  currentUserId?: number
+  currentUserName?: string
   disabled?: boolean
 }
 
@@ -15,6 +17,8 @@ export default function ScribbleChat({
   onSendMessage,
   hasGuessed,
   isDrawer,
+  currentUserId,
+  currentUserName,
   disabled,
 }: ScribbleChatProps) {
   const [input, setInput] = useState('')
@@ -28,28 +32,34 @@ export default function ScribbleChat({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || disabled) return
+    if (!input.trim() || disabled || hasGuessed || isDrawer) return
     onSendMessage(input.trim())
     setInput('')
+  }
+
+  const isSelf = (msg: ScribbleChatMessage) => {
+    if (currentUserId && msg.senderId === currentUserId) return true
+    if (currentUserName && msg.senderName && currentUserName.trim().toLowerCase() === msg.senderName.trim().toLowerCase()) return true
+    return false
   }
 
   return (
     <div className="w-full h-full bg-[#13141f]/80 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-3xl p-3 sm:p-4 flex flex-col shadow-xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 mb-2 border-b border-white/10">
-        <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide uppercase">
-          Live Chat & Guesses
+        <h3 className="text-xs sm:text-sm font-bold text-white tracking-wide uppercase flex items-center gap-1.5">
+          <span>Chat & Guesses</span>
         </h3>
         {hasGuessed && (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
             <CheckCircle2 size={10} />
-            <span>Guessed</span>
+            <span>✓ Solved</span>
           </span>
         )}
       </div>
 
       {/* Messages Feed */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-4 text-white/40 text-xs">
             <Sparkles className="w-6 h-6 mb-2 text-purple-400 opacity-60" />
@@ -61,28 +71,9 @@ export default function ScribbleChat({
               return (
                 <div
                   key={msg.id}
-                  className="p-2 sm:p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center justify-between shadow-lg shadow-emerald-950/40 animate-in fade-in slide-in-from-bottom-1"
+                  className="p-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 shadow-sm animate-in fade-in"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm">🎉</span>
-                    <span>{msg.content}</span>
-                  </div>
-                  {msg.pointsEarned ? (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-bold font-mono">
-                      +{msg.pointsEarned} pts
-                    </span>
-                  ) : null}
-                </div>
-              )
-            }
-
-            if (msg.type === 'CLOSE_GUESS') {
-              return (
-                <div
-                  key={msg.id}
-                  className="p-2 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-1.5 animate-pulse"
-                >
-                  <AlertCircle size={14} className="text-amber-400 shrink-0" />
+                  <span className="text-sm">🎉</span>
                   <span>{msg.content}</span>
                 </div>
               )
@@ -99,14 +90,17 @@ export default function ScribbleChat({
               )
             }
 
-            // Normal Player Chat
+            // Normal Player Chat (You vs PlayerName)
+            const self = isSelf(msg)
             return (
               <div
                 key={msg.id}
-                className="text-xs p-1.5 rounded-xl hover:bg-white/[0.02] transition-colors"
+                className="text-xs p-1 rounded-lg hover:bg-white/[0.02] transition-colors leading-relaxed"
               >
-                <span className="font-bold text-silver mr-1.5">{msg.senderName}:</span>
-                <span className={msg.isPrivate ? 'text-emerald-300 italic' : 'text-white/80'}>
+                <span className={`font-bold mr-1.5 ${self ? 'text-purple-400' : 'text-silver'}`}>
+                  {self ? 'You' : msg.senderName}:
+                </span>
+                <span className="text-white/90">
                   {msg.content}
                 </span>
               </div>
@@ -121,20 +115,20 @@ export default function ScribbleChat({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={disabled}
+          disabled={disabled || hasGuessed || isDrawer}
           placeholder={
             isDrawer
-              ? 'You are drawing! Chat disabled during turn'
+              ? 'You are drawing! Chat disabled'
               : hasGuessed
-              ? 'You solved it! Chat with other winners...'
-              : 'Type your guess here...'
+              ? '✓ You guessed correctly!'
+              : 'Type your answer...'
           }
           className="flex-1 bg-white/5 border border-white/10 focus:border-purple-500 rounded-xl px-3 py-2 text-xs text-white placeholder-white/40 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           type="submit"
-          disabled={disabled || !input.trim() || isDrawer}
-          className="p-2 sm:px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-glow"
+          disabled={disabled || !input.trim() || hasGuessed || isDrawer}
+          className="p-2 sm:px-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-glow"
         >
           <Send size={14} />
         </button>

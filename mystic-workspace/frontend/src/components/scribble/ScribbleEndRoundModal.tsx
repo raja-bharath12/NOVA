@@ -100,20 +100,44 @@ export default function ScribbleEndRoundModal({
           </>
         ) : (
           <>
-            <div className="inline-flex p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 mb-3">
-              <Award size={28} />
+            <div className="inline-flex p-3 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 mb-2">
+              <Award size={26} />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white">Turn Ended!</h2>
-            <p className="text-xs text-white/50 mt-1">The secret word was:</p>
+            <h2 className="text-xl sm:text-2xl font-black text-white">DRAWING COMPLETE</h2>
+            <p className="text-xs text-white/50 mt-0.5">The secret word was:</p>
 
-            <div className="my-4 py-3 px-6 rounded-2xl bg-white/[0.05] border border-white/10 inline-block">
-              <span className="text-lg sm:text-2xl font-extrabold font-mono tracking-widest text-emerald-400">
+            <div className="my-3 py-2.5 px-6 rounded-2xl bg-white/[0.06] border border-white/10 inline-block shadow-inner">
+              <span className="text-xl sm:text-2xl font-black font-mono tracking-widest text-emerald-400 uppercase">
                 {revealedWord}
               </span>
             </div>
 
-            <p className="text-xs text-white/40 animate-pulse">
-              Next turn starting in 5 seconds...
+            {/* Turn Round Breakdown */}
+            <div className="my-3 text-left bg-white/[0.02] border border-white/5 rounded-2xl p-3 max-h-40 overflow-y-auto custom-scrollbar">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider block mb-2">Round Score Summary</span>
+              <div className="space-y-1.5">
+                {players.map((p) => (
+                  <div key={p.userId} className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-white/90 truncate max-w-[150px]">
+                      {p.name} {p.isDrawing ? '🎨' : ''}
+                    </span>
+                    <div className="flex items-center gap-2 font-mono">
+                      {p.roundScore > 0 ? (
+                        <span className="text-emerald-400 font-bold">✓ +{p.roundScore}</span>
+                      ) : p.isDrawing ? (
+                        <span className="text-purple-300 font-bold">+{p.roundScore}</span>
+                      ) : (
+                        <span className="text-white/30">✗ +0</span>
+                      )}
+                      <span className="text-silver font-bold">({p.score} total)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-purple-300/80 animate-pulse font-medium">
+              Next turn starting shortly...
             </p>
           </>
         )}
