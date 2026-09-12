@@ -446,6 +446,16 @@ public class ScribbleGameService {
         room.turnStartTimeMs = System.currentTimeMillis();
 
         broadcastRoomState(room);
+
+        // Send unmasked secret word to drawer's private channel
+        Long currentDrawerId = room.getCurrentDrawer() != null ? room.getCurrentDrawer().getUserId() : drawerId;
+        if (currentDrawerId != null) {
+            messagingTemplate.convertAndSend(
+                    "/topic/scribble." + room.getRoomCode() + ".private." + currentDrawerId,
+                    room.toDto(currentDrawerId)
+            );
+        }
+
         broadcastSystemChat(room, "🎨 " + room.getCurrentDrawer().getName() + " is now drawing!", ChatMessage.MsgType.SYSTEM);
 
         // Drawing countdown loop (30s)
@@ -615,8 +625,12 @@ public class ScribbleGameService {
             if (!room.currentCanvasActions.isEmpty()) {
                 room.currentCanvasActions.remove(room.currentCanvasActions.size() - 1);
             }
-        } else {
+        } else if (action.getType() == DrawAction.Type.FILL) {
             room.currentCanvasActions.add(action);
+        } else if (action.getType() == DrawAction.Type.END) {
+            if (action.getPoints() != null && !action.getPoints().isEmpty()) {
+                room.currentCanvasActions.add(action);
+            }
         }
 
         broadcastCanvasAction(room, action);

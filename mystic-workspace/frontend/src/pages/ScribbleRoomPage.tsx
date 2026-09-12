@@ -18,7 +18,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import scribbleService from '../services/scribbleService'
 import websocketService from '../services/websocketService'
-import ScribbleCanvas from '../components/scribble/ScribbleCanvas'
+import ScribbleCanvas, { ScribbleCanvasHandle } from '../components/scribble/ScribbleCanvas'
 import ScribbleToolbar from '../components/scribble/ScribbleToolbar'
 import ScribbleLeaderboard from '../components/scribble/ScribbleLeaderboard'
 import ScribbleChat from '../components/scribble/ScribbleChat'
@@ -40,8 +40,9 @@ export default function ScribbleRoomPage() {
   const [roomState, setRoomState] = useState<RoomState | null>(null)
   const [loading, setLoading] = useState(true)
   const [messages, setMessages] = useState<ScribbleChatMessage[]>([])
-  const [incomingAction, setIncomingAction] = useState<DrawAction | null>(null)
   const [initialActions, setInitialActions] = useState<DrawAction[]>([])
+  const [drawerSecretWord, setDrawerSecretWord] = useState<string>('')
+  const scribbleCanvasRef = useRef<ScribbleCanvasHandle | null>(null)
 
   // Drawer local tool state
   const [currentTool, setCurrentTool] = useState<'brush' | 'pencil' | 'eraser' | 'fill'>('brush')
@@ -111,9 +112,13 @@ export default function ScribbleRoomPage() {
         if (state.wordChoices && state.wordChoices.length > 0) {
           setDrawerWordChoices(state.wordChoices)
         }
+        if (state.phase === 'LOBBY' || state.phase === 'WORD_SELECTION') {
+          setDrawerSecretWord('')
+        }
       },
       (action: DrawAction) => {
-        setIncomingAction(action)
+        // Render remote action directly to canvas context for 60 FPS without React lag
+        scribbleCanvasRef.current?.handleRemoteAction(action)
       },
       (chatMsg: ScribbleChatMessage) => {
         setMessages((prev) => [...prev, chatMsg])
@@ -123,6 +128,12 @@ export default function ScribbleRoomPage() {
           setDrawerWordChoices(privatePayload.wordChoices)
         } else if (privatePayload?.type === 'CLOSE_GUESS') {
           setMessages((prev) => [...prev, privatePayload])
+        }
+        if (privatePayload?.maskedWord && !privatePayload.maskedWord.includes('_')) {
+          setDrawerSecretWord(privatePayload.maskedWord)
+        }
+        if (privatePayload?.currentWord?.word) {
+          setDrawerSecretWord(privatePayload.currentWord.word)
         }
       },
       (timerData) => {
@@ -148,6 +159,7 @@ export default function ScribbleRoomPage() {
 
   const handleSelectWord = (word: string) => {
     if (!roomCode) return
+    setDrawerSecretWord(word.toUpperCase())
     websocketService.sendScribbleSelectWord(roomCode, word)
     setDrawerWordChoices([])
   }
@@ -186,15 +198,15 @@ export default function ScribbleRoomPage() {
 
   const handleClear = () => {
     if (!roomCode || !isDrawer) return
+    scribbleCanvasRef.current?.clear()
     const clearAction: DrawAction = { type: 'CLEAR', timestamp: Date.now() }
-    setIncomingAction(clearAction)
     websocketService.sendScribbleDraw(roomCode, clearAction)
   }
 
   const handleUndo = () => {
     if (!roomCode || !isDrawer) return
+    scribbleCanvasRef.current?.undo()
     const undoAction: DrawAction = { type: 'UNDO', timestamp: Date.now() }
-    setIncomingAction(undoAction)
     websocketService.sendScribbleDraw(roomCode, undoAction)
   }
 
@@ -208,6 +220,11 @@ export default function ScribbleRoomPage() {
       </div>
     )
   }
+
+  // Word display computations
+  const effectiveDrawerWord = drawerSecretWord || (roomState.maskedWord && !roomState.maskedWord.includes('_') ? roomState.maskedWord : '')
+  const drawerWordLength = effectiveDrawerWord ? effectiveDrawerWord.replace(/[^a-zA-Z0-9]/g, '').length : (roomState.wordLength || 0)
+  const guesserWordLength = roomState.wordLength || roomState.maskedWord.replace(/\s+/g, '').length
 
   return (
     <div className="w-full flex flex-col space-y-3 pb-8 max-w-[1600px] mx-auto min-h-[calc(100dvh-5rem)]">
@@ -224,9 +241,9 @@ export default function ScribbleRoomPage() {
             <span className="text-xs sm:text-sm font-bold text-silver">
               {roomState.currentDrawerName ? (
                 isDrawer ? (
-                  <span className="text-purple-300">🎨 You</span>
+                  <span className="text-purple-300 font-extrabold">🎨 You</span>
                 ) : (
-                  <span>🎨 {roomState.currentDrawerName}</span>
+                  <span className="text-white font-bold">🎨 {roomState.currentDrawerName}</span>
                 )
               ) : (
                 'Waiting in Lobby'
@@ -242,21 +259,36 @@ export default function ScribbleRoomPage() {
               Room: {roomState.roomCode}
             </span>
           ) : isDrawer ? (
-            <div className="text-center">
-              <span className="text-xs text-white/50 block font-semibold">Your Word:</span>
-              <span className="text-base sm:text-xl font-mono font-black text-purple-300 tracking-widest uppercase">
-                {roomState.maskedWord}
+            <div className="flex flex-col items-center justify-center text-center">
+              <span className="text-xs font-bold text-purple-300 flex items-center gap-1">
+                🎨 You are drawing:
               </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-base sm:text-xl font-mono font-black text-white tracking-widest uppercase bg-purple-500/10 px-3 py-0.5 rounded-xl border border-purple-500/20">
+                  {effectiveDrawerWord || roomState.maskedWord || 'Choosing...'}
+                </span>
+                {drawerWordLength > 0 && (
+                  <span className="text-[11px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full font-mono">
+                    {drawerWordLength} letters
+                  </span>
+                )}
+              </div>
             </div>
           ) : (
-            <div className="text-center">
-              <span className="text-xs text-white/40 block font-medium">Guess the word:</span>
-              <span className="text-base sm:text-2xl font-mono font-black text-white tracking-[0.25em]">
-                {roomState.maskedWord}
+            <div className="flex flex-col items-center justify-center text-center">
+              <span className="text-xs text-white/70 font-semibold flex items-center gap-1">
+                🎨 <b className="text-purple-300">{roomState.currentDrawerName || 'Drawer'}</b> is drawing
               </span>
-              <span className="text-[10px] text-white/40 block">
-                {roomState.wordLength} letters
-              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-base sm:text-2xl font-mono font-black text-white tracking-[0.25em]">
+                  {roomState.maskedWord}
+                </span>
+                {guesserWordLength > 0 && (
+                  <span className="text-[11px] font-bold text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2.5 py-0.5 rounded-full font-mono">
+                    {guesserWordLength} letters
+                  </span>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -456,12 +488,12 @@ export default function ScribbleRoomPage() {
             <div className="lg:col-span-6 flex flex-col gap-2 min-h-[320px] sm:min-h-[420px] lg:min-h-[520px]">
               <div className="flex-1 relative w-full h-[280px] sm:h-[380px] lg:h-full">
                 <ScribbleCanvas
+                  ref={scribbleCanvasRef}
                   isDrawer={isDrawer && roomState.phase === 'DRAWING'}
                   currentTool={currentTool}
                   currentColor={currentColor}
                   currentWidth={currentWidth}
                   onEmitDrawAction={handleEmitDrawAction}
-                  incomingAction={incomingAction}
                   initialActions={initialActions}
                 />
               </div>

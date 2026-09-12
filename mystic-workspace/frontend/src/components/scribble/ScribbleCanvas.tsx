@@ -1,5 +1,11 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react'
 import type { DrawAction, DrawPoint } from '../../types/scribble'
+
+export interface ScribbleCanvasHandle {
+  handleRemoteAction: (action: DrawAction) => void
+  clear: () => void
+  undo: () => void
+}
 
 interface ScribbleCanvasProps {
   isDrawer: boolean
@@ -7,19 +13,20 @@ interface ScribbleCanvasProps {
   currentColor: string
   currentWidth: number
   onEmitDrawAction: (action: DrawAction) => void
-  incomingAction: DrawAction | null
   initialActions?: DrawAction[]
 }
 
-export default function ScribbleCanvas({
-  isDrawer,
-  currentTool,
-  currentColor,
-  currentWidth,
-  onEmitDrawAction,
-  incomingAction,
-  initialActions = [],
-}: ScribbleCanvasProps) {
+const ScribbleCanvas = forwardRef<ScribbleCanvasHandle, ScribbleCanvasProps>(function ScribbleCanvas(
+  {
+    isDrawer,
+    currentTool,
+    currentColor,
+    currentWidth,
+    onEmitDrawAction,
+    initialActions = [],
+  },
+  ref
+) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const isDrawingRef = useRef<boolean>(false)
   const currentPointsRef = useRef<DrawPoint[]>([])
@@ -35,11 +42,9 @@ export default function ScribbleCanvas({
     const w = canvas.width
     const h = canvas.height
 
-    // Clear with crisp white canvas background
     ctx.fillStyle = '#FFFFFF'
     ctx.fillRect(0, 0, w, h)
 
-    // Replay actions
     historyRef.current.forEach((action) => {
       renderAction(ctx, action, w, h)
     })
@@ -53,8 +58,8 @@ export default function ScribbleCanvas({
     const rect = canvas.parentElement.getBoundingClientRect()
     const dpr = window.devicePixelRatio || 1
 
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
+    canvas.width = Math.max(100, Math.floor(rect.width * dpr))
+    canvas.height = Math.max(100, Math.floor(rect.height * dpr))
     canvas.style.width = `${rect.width}px`
     canvas.style.height = `${rect.height}px`
 
@@ -75,29 +80,50 @@ export default function ScribbleCanvas({
     }
   }, [initialActions, redrawAll])
 
-  // Handle incoming remote stroke actions
-  useEffect(() => {
-    if (!incomingAction) return
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return
+  // Imperative handle for 60 FPS remote action rendering without React state updates
+  useImperativeHandle(ref, () => ({
+    handleRemoteAction: (action: DrawAction) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      if (!ctx) return
 
-    const w = canvas.width
-    const h = canvas.height
+      const w = canvas.width
+      const h = canvas.height
 
-    if (incomingAction.type === 'CLEAR') {
+      if (action.type === 'CLEAR') {
+        historyRef.current = []
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, w, h)
+      } else if (action.type === 'UNDO') {
+        historyRef.current.pop()
+        redrawAll()
+      } else if (action.type === 'END') {
+        if (action.points && action.points.length > 0) {
+          historyRef.current.push(action)
+        }
+      } else if (action.type === 'FILL') {
+        historyRef.current.push(action)
+        renderAction(ctx, action, w, h)
+      } else {
+        renderAction(ctx, action, w, h)
+      }
+    },
+    clear: () => {
       historyRef.current = []
-      ctx.fillStyle = '#FFFFFF'
-      ctx.fillRect(0, 0, w, h)
-    } else if (incomingAction.type === 'UNDO') {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+    },
+    undo: () => {
       historyRef.current.pop()
       redrawAll()
-    } else {
-      historyRef.current.push(incomingAction)
-      renderAction(ctx, incomingAction, w, h)
-    }
-  }, [incomingAction, redrawAll])
+    },
+  }))
 
   // Render a specific draw action
   const renderAction = (
@@ -143,7 +169,16 @@ export default function ScribbleCanvas({
       return
     }
 
-    // Bézier curve smoothing between points
+    if (points.length === 2) {
+      ctx.beginPath()
+      ctx.moveTo(points[0].x * canvasW, points[0].y * canvasH)
+      ctx.lineTo(points[1].x * canvasW, points[1].y * canvasH)
+      ctx.stroke()
+      ctx.restore()
+      return
+    }
+
+    // Bézier curve smoothing for multi-point complete strokes
     ctx.beginPath()
     ctx.moveTo(points[0].x * canvasW, points[0].y * canvasH)
 
@@ -176,7 +211,6 @@ export default function ScribbleCanvas({
     const startR = data[startIndex]
     const startG = data[startIndex + 1]
     const startB = data[startIndex + 2]
-    const startA = data[startIndex + 3]
 
     if (
       Math.abs(startR - fillColor.r) < 5 &&
@@ -321,26 +355,39 @@ export default function ScribbleCanvas({
     const points = currentPointsRef.current
     const prev = points[points.length - 1]
 
-    // Minimum distance filter to avoid redundant points
     const dist = Math.hypot(pt.x - prev.x, pt.y - prev.y)
-    if (dist < 0.003) return
+    if (dist < 0.001) return
 
     points.push(pt)
 
-    // Render locally immediately
+    // Render continuous segment locally immediately
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (ctx && points.length >= 2) {
-      const strokeAction: DrawAction = {
-        type: 'STROKE',
-        points: points.slice(-3), // Send last segment for live sync
-        color: currentColor,
-        width: currentWidth,
-        tool: currentTool,
-        timestamp: Date.now(),
-      }
-      renderAction(ctx, strokeAction, canvas.width, canvas.height)
-      onEmitDrawAction(strokeAction)
+    if (ctx) {
+      ctx.save()
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = currentTool === 'eraser' ? '#FFFFFF' : currentColor
+      const dpr = window.devicePixelRatio || 1
+      const baseW = (currentWidth || 4) * dpr
+      ctx.lineWidth = currentTool === 'pencil' ? Math.max(1, baseW * 0.75) : baseW
+
+      ctx.beginPath()
+      ctx.moveTo(prev.x * canvas.width, prev.y * canvas.height)
+      ctx.lineTo(pt.x * canvas.width, pt.y * canvas.height)
+      ctx.stroke()
+      ctx.restore()
     }
+
+    // Stream point-to-point segment to all spectators
+    const segmentAction: DrawAction = {
+      type: 'STROKE',
+      points: [prev, pt],
+      color: currentColor,
+      width: currentWidth,
+      tool: currentTool,
+      timestamp: Date.now(),
+    }
+    onEmitDrawAction(segmentAction)
   }
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -355,7 +402,7 @@ export default function ScribbleCanvas({
     const points = currentPointsRef.current
     if (points.length > 0) {
       const completeStroke: DrawAction = {
-        type: 'STROKE',
+        type: 'END',
         points: [...points],
         color: currentColor,
         width: currentWidth,
@@ -363,7 +410,7 @@ export default function ScribbleCanvas({
         timestamp: Date.now(),
       }
       historyRef.current.push(completeStroke)
-      onEmitDrawAction({ type: 'END', timestamp: Date.now() })
+      onEmitDrawAction(completeStroke)
     }
     currentPointsRef.current = []
   }
@@ -395,4 +442,6 @@ export default function ScribbleCanvas({
       )}
     </div>
   )
-}
+})
+
+export default ScribbleCanvas
