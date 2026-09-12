@@ -103,6 +103,45 @@ export function CallProvider({ children }: { children: ReactNode }) {
       })
     })
 
+    // Auto-subscribe to Web Push notifications when user is authenticated
+    notificationService.subscribeToPushNotifications().catch((err) => {
+      console.warn('Auto push subscription skipped or denied:', err)
+    })
+
+    // Listen for background push action triggers from Service Worker (e.g. Accept / Decline)
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'ACCEPT_CALL_PUSH') {
+        const { callerId, callerName, isVideo } = event.data
+        if (callerId && !activeCallRef.current) {
+          initiateCall(Number(callerId), callerName || 'Caller', Boolean(isVideo))
+        }
+      } else if (event.data?.type === 'DECLINE_CALL_PUSH') {
+        rejectCall()
+      }
+    }
+
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage)
+    }
+
+    // Check if launched from a background notification URL (?action=accept&callerId=...)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const action = params.get('action')
+      const callerId = params.get('callerId')
+      const callerName = params.get('callerName') || 'Caller'
+      const isVideo = params.get('isVideo') === 'true'
+
+      if (action === 'accept' && callerId) {
+        window.history.replaceState({}, '', window.location.pathname)
+        setTimeout(() => {
+          if (!activeCallRef.current) {
+            initiateCall(Number(callerId), callerName, isVideo)
+          }
+        }, 600)
+      }
+    }
+
     checkCalendarReminders()
     const reminderInterval = setInterval(checkCalendarReminders, 5 * 60 * 1000)
 
@@ -111,6 +150,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
       unsubNotifs()
       unsubPresence()
       clearInterval(reminderInterval)
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage)
+      }
       websocketService.disconnect()
     }
   }, [user])

@@ -23,6 +23,7 @@ public class SignalingWebSocketController {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final UserRepository userRepository;
+    private final WebPushService webPushService;
 
     /**
      * WebRTC 1-to-1 Audio/Video Call Signaling.
@@ -42,6 +43,11 @@ public class SignalingWebSocketController {
                 messagingTemplate.convertAndSendToUser(targetUser.getEmail(), "/queue/call.signal", signal);
                 // 2. Also broadcast to /topic/user.{id}.call for multi-tab/topic resilience
                 messagingTemplate.convertAndSend("/topic/user." + targetUser.getId() + ".call", signal);
+
+                // 3. Dispatch system-level Web Push notification for incoming calls
+                if (signal.getType() == CallSignalDto.Type.CALL_REQUEST) {
+                    webPushService.sendCallNotification(targetUser, sender, signal);
+                }
             } catch (Exception e) {
                 log.error("Failed to route call signal from {} to {}: {}", sender.getId(), targetUser.getId(), e.getMessage());
             }

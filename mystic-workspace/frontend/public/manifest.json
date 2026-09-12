@@ -1,0 +1,17 @@
+{
+  "name": "NOVA — Intelligent Workspace",
+  "short_name": "NOVA",
+  "description": "Collaborative Cloud Workspace with Real-time Chat, Video Calls, Watch Together, and Music Jam",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030014",
+  "theme_color": "#7c3aed",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

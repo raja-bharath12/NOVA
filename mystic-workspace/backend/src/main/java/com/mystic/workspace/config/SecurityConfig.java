@@ -61,6 +61,7 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/auth/**", "/api/api/auth/**").permitAll()
+                .requestMatchers("/api/notifications/vapid-public-key", "/notifications/vapid-public-key", "/api/api/notifications/vapid-public-key").permitAll()
                 .requestMatchers("/api/livekit/**", "/livekit/**", "/api/api/livekit/**").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/api/files/**", "/files/**", "/api/api/files/**").permitAll()

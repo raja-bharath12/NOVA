@@ -1,4 +1,16 @@
+import api from './api'
 import type { AppNotification, EventItem, Message } from '../types'
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  const outputArray = new Uint8Array(rawData.length)
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i)
+  }
+  return outputArray
+}
 
 class NotificationService {
   private swRegistration: ServiceWorkerRegistration | null = null
@@ -41,6 +53,74 @@ class NotificationService {
       return permission === 'granted'
     } catch (err) {
       console.error('Error requesting notification permission:', err)
+      return false
+    }
+  }
+
+  /**
+   * Subscribes the current device to native Web Push notifications for incoming calls and system alerts.
+   */
+  public async subscribeToPushNotifications(): Promise<boolean> {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      console.warn('Push messaging is not supported in this browser environment')
+      return false
+    }
+
+    try {
+      const reg = await this.initServiceWorker()
+      if (!reg) return false
+
+      const permission = await this.requestPermission()
+      if (!permission) return false
+
+      // Fetch VAPID public key from backend
+      let vapidPublicKey: string | null = null
+      try {
+        const res = await api.get<{ publicKey: string }>('/notifications/vapid-public-key')
+        vapidPublicKey = res.data?.publicKey
+      } catch (err) {
+        console.warn('Failed to fetch VAPID key from backend, using fallback:', err)
+        vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuYkr3qBUYIHBQFLXYp5Nksh8U'
+      }
+
+      if (!vapidPublicKey) return false
+
+      const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey)
+
+      // Subscribe to PushManager
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: convertedVapidKey as unknown as BufferSource,
+      })
+
+      // Send subscription object to backend
+      await api.post('/notifications/subscribe', subscription.toJSON())
+      console.log('Successfully registered Web Push Subscription for user')
+      return true
+    } catch (err) {
+      console.error('Error subscribing to Push Notifications:', err)
+      return false
+    }
+  }
+
+  /**
+   * Unsubscribes current device from Web Push notifications.
+   */
+  public async unsubscribeFromPushNotifications(): Promise<boolean> {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false
+
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const subscription = await reg.pushManager.getSubscription()
+      if (subscription) {
+        const endpoint = subscription.endpoint
+        await subscription.unsubscribe()
+        await api.post('/notifications/unsubscribe', { endpoint })
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error('Error unsubscribing from Push Notifications:', err)
       return false
     }
   }
