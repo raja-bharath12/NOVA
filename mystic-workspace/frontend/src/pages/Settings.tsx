@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Copy, Check, Link as LinkIcon, User as UserIcon, Shield, Hash, Sparkles, Bell, Moon, Sun, Phone, MessageSquare, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Copy, Check, Link as LinkIcon, Shield, Hash, Bell, Moon, Sun, Phone, MessageSquare, CheckCircle2, AlertCircle, Smartphone, Download } from 'lucide-react'
 import GlassPanel from '../components/dashboard/GlassPanel'
+import InstallAppModal from '../components/install/InstallAppModal'
 import { useAuth } from '../context/AuthContext'
 import { useCall } from '../context/CallContext'
 import { useToast } from '../context/ToastContext'
@@ -15,6 +16,7 @@ export default function Settings() {
   const [copiedTag, setCopiedTag] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [testingNotif, setTestingNotif] = useState(false)
+  const [showInstallModal, setShowInstallModal] = useState(false)
 
   const effectiveTag = user?.userTag || (user ? generateFallbackTag(user.id, user.email) : '')
   const directChatLink = effectiveTag ? `${window.location.origin}/chat/u/${effectiveTag}` : ''
@@ -135,6 +137,53 @@ export default function Settings() {
         </div>
       </GlassPanel>
 
+      {/* Mobile & Desktop App Installation Card */}
+      <GlassPanel className="p-4 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 flex-shrink-0">
+              <Smartphone size={20} />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-display font-semibold text-silver flex items-center gap-2">
+                Download & Install NOVA App
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-medium">
+                  Mobile & Desktop
+                </span>
+              </h3>
+              <p className="text-xs text-muted">
+                Install NOVA on Android, iPhone (iOS), Windows, and Mac for full-screen calls and lock-screen alerts.
+              </p>
+            </div>
+          </div>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.05 }}
+            onClick={() => setShowInstallModal(true)}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-void-950 text-xs font-bold font-display shadow-glow flex items-center gap-2 flex-shrink-0"
+          >
+            <Download size={15} />
+            <span>Install Guide & App</span>
+          </motion.button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+            <p className="text-xs font-semibold text-silver">🤖 Android Phone</p>
+            <p className="text-[11px] text-muted mt-1">Chrome 1-Click Install (PWA) or standalone `.apk` package.</p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+            <p className="text-xs font-semibold text-silver">🍎 Apple iPhone (iOS)</p>
+            <p className="text-[11px] text-muted mt-1">Safari Share Menu → "Add to Home Screen" with zero App Store wait.</p>
+          </div>
+          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+            <p className="text-xs font-semibold text-silver">💻 Windows & Mac</p>
+            <p className="text-[11px] text-muted mt-1">Chrome/Edge address bar install or Mac Dock pinning.</p>
+          </div>
+        </div>
+      </GlassPanel>
+
       {/* Notifications & Smart Calendar Alerts Settings Card */}
       <GlassPanel className="p-4 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.06]">
@@ -247,7 +296,12 @@ export default function Settings() {
           </div>
         </div>
       </GlassPanel>
+
+      {/* Universal Install App Modal */}
+      <InstallAppModal
+        isOpen={showInstallModal}
+        onClose={() => setShowInstallModal(false)}
+      />
     </div>
   )
 }
-
